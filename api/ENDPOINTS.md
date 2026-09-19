@@ -9,6 +9,14 @@
 - GET /companie - Pega os dados da empresa
 - PUT /companie - Atualiza os dados técnicos (setor, capacidade, CO2) para recalibrar a IA.
 
+## Usuários (/user)
+
+- POST /user - Cria o usuário (`name`, `email`, `isActive` opcional). 409 se o e-mail já existir.
+- GET /user - Lista os usuários.
+- GET /user/:id - Busca um usuário pelo id (uuid).
+- PUT /user/:id - Atualiza o usuário. Todos os campos são opcionais.
+- DELETE /user/:id - Remove o usuário (soft delete). Retorna 204.
+
 ## Feed de Resumos (/feed)
 
 - GET /feed - Lista os resumos diários das normativas (com paginação). Pode receber filtros: ?source=ANEEL.

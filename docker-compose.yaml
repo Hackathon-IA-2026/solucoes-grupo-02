@@ -1,2 +1,45 @@
+# Uso: docker compose --env-file api/.env up -d
+#
+# --env-file alimenta os ${...} deste arquivo (o db lê DB_USER/DB_PASSWORD/DB_NAME de api/.env)
+# env_file (dentro de cada serviço) injeta as variáveis no container: api/.env -> api, web/.env -> web
+
 services:
   db:
+    image: postgres:16-alpine
+    container_name: smart_investor_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  api:
+    build: ./api
+    env_file: ./api/.env
+    environment:
+      # api/.env aponta para 127.0.0.1 (api rodando no host); na rede do compose o banco é o serviço "db"
+      DB_HOST: db
+      DB_PORT: 5432
+      # porta interna fixa, para o mapeamento abaixo não depender de um PORT no .env
+      PORT: 3000
+    ports:
+      # 3333 é a porta que o web/.env.example espera em VITE_API_URL
+      - "3333:3000"
+    depends_on:
+      - db
+
+  web:
+    build: ./web
+    env_file:
+      # opcional: sem web/.env o web usa os defaults do código (VITE_USE_MOCK=true)
+      - path: ./web/.env
+        required: false
+    ports:
+      - "5173:5173"
+
+volumes:
+  pgdata:

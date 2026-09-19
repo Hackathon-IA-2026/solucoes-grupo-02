@@ -1,0 +1,7 @@
+# dotenv environment variable files (api/.env, web/.env, ...)
+.env
+.env.*
+!.env.example
+
+node_modules/
+dist/
