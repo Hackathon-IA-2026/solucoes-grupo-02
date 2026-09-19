@@ -10,7 +10,6 @@ import {
 
 // user (id, nome, email, senha, token_reset_password, #companie_id)
 
-// e-mail único só entre usuários não removidos (soft delete não trava o reuso)
 @Index(['email'], { unique: true, where: '"deleted_at" IS NULL' })
 @Entity({ name: 'users' })
 export class UserEntity {

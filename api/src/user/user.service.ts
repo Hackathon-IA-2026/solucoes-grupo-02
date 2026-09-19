@@ -47,7 +47,6 @@ export class UserService {
       await this.assertEmailAvailable(updateUserDto.email);
     }
 
-    // merge ignora campos undefined, então o que não veio no body é preservado
     this.userRepository.merge(user, updateUserDto);
 
     return GetUserDto.fromEntity(await this.userRepository.save(user));
