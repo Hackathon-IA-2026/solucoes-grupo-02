@@ -7,7 +7,6 @@ import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      // 1. Adicionamos ': TypeOrmModuleOptions' aqui para forçar a tipagem do objeto retornado
       useFactory: (config: ConfigService): TypeOrmModuleOptions => ({
         type: 'postgres',
         host: config.get<string>('DB_HOST', 'localhost'),
