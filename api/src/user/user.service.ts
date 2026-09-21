@@ -1,50 +1,16 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CreateUserDto } from './dto/create-user.dto';
-import { GetUserDto } from './dto/get-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
 import { UserEntity } from './entities/user.entity';
+import { BaseService } from '../base.service';
 
 @Injectable()
-export class UserService {
-  constructor(
-    @InjectRepository(UserEntity)
-    private readonly userRepository: Repository<UserEntity>,
-  ) {}
-
-  async create(createUserDto: CreateUserDto): Promise<GetUserDto> {
-    await this.assertEmailAvailable(createUserDto.email);
-
-    const user = this.userRepository.create({
-      ...createUserDto,
-      isActive: createUserDto.isActive ?? true,
-    });
-
-    return GetUserDto.fromEntity(await this.userRepository.save(user));
-  }
-
-  async findAll(): Promise<GetUserDto[]> {
-    const users = await this.userRepository.find({
-      order: { createdAt: 'DESC' },
-    });
-
-    return users.map((user) => GetUserDto.fromEntity(user));
-  }
-
-  async findOne(id: string): Promise<GetUserDto> {
-    return GetUserDto.fromEntity(await this.findEntity(id));
-  }
-
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<GetUserDto> {
-    const user = await this.findEntity(id);
-
-    if (updateUserDto.email && updateUserDto.email !== user.email) {
-      await this.assertEmailAvailable(updateUserDto.email);
+export class UserService extends BaseService<UserEntity> {
+    constructor(
+        @InjectRepository(UserEntity)
+        userRepository: Repository<UserEntity>,
+    ) {
+        super(userRepository);
     }
 
     this.userRepository.merge(user, updateUserDto);
@@ -61,13 +27,21 @@ export class UserService {
     const user = await this.userRepository.findOneBy({ id });
     if (!user) {
       throw new NotFoundException('Usuário não encontrado');
+    public async findUserToLogin(email: string): Promise<UserEntity | null> {
+        const user = await this.findByEmail(email);
+        if (!user) {
+            console.log(`Usuário com email ${email} não foi encontrado para login.`);
+            return null;
+        }
+        return user;
     }
-    return user;
-  }
 
-  private async assertEmailAvailable(email: string): Promise<void> {
-    if (await this.userRepository.existsBy({ email })) {
-      throw new ConflictException('E-mail já cadastrado');
+    private async findByEmail(email: string): Promise<UserEntity | null> {
+        const user = await this.repository.findOneBy({ email });
+        if (!user) {
+            console.log(`Usuário com email ${email} não foi encontrado.`);
+            return null;
+        }
+        return user;
     }
-  }
 }
