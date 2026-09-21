@@ -13,6 +13,20 @@ export class UserService extends BaseService<UserEntity> {
         super(userRepository);
     }
 
+    this.userRepository.merge(user, updateUserDto);
+
+    return GetUserDto.fromEntity(await this.userRepository.save(user));
+  }
+
+  async remove(id: string): Promise<void> {
+    const user = await this.findEntity(id);
+    await this.userRepository.softRemove(user);
+  }
+
+  private async findEntity(id: string): Promise<UserEntity> {
+    const user = await this.userRepository.findOneBy({ id });
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado');
     public async findUserToLogin(email: string): Promise<UserEntity | null> {
         const user = await this.findByEmail(email);
         if (!user) {
