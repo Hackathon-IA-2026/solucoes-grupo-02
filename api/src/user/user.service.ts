@@ -22,6 +22,9 @@ export class UserService extends BaseService<UserEntity> {
         let user = new UserEntity();
         user.name = req.name;
         user.email = req.email;
+        if (req.phoneNumber) {
+            user.phoneNumber = req.phoneNumber;
+        }
         user.hashPassword = await bcrypt.hash(req.password, 10);
 
         user = await this.persist(user);

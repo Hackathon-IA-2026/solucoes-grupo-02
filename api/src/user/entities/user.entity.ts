@@ -11,4 +11,7 @@ export class UserEntity extends BaseEntity {
 
     @Column({ name: 'hash_password' })
     hashPassword!: string;
+
+    @Column({ name: 'phone_number', unique: true, nullable: true })
+    phoneNumber!: string;
 }

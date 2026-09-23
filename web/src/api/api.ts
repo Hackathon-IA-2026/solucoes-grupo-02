@@ -3,22 +3,36 @@ import axios from 'axios';
 export const TOKEN_KEY = 'es-token';
 
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:3333',
+    baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:3000',
     withCredentials: true,
 });
 
-api.interceptors.request.use((config) => {
-    try {
+api.interceptors.request.use(
+    function (config) {
         const token = localStorage.getItem(TOKEN_KEY);
         if (token && !config.headers.Authorization) {
             config.headers.Authorization = `Bearer ${token}`;
         }
-    } catch {
-        //
-    }
+        return config;
+    },
+    function (error) {
+        // Do something with request error
+        return Promise.reject(error);
+    },
+);
 
-    return config;
-});
+// api.interceptors.request.use((config) => {
+//     try {
+//         const token = localStorage.getItem(TOKEN_KEY);
+//         if (token && !config.headers.Authorization) {
+//             config.headers.Authorization = `Bearer ${token}`;
+//         }
+//     } catch {
+//         //
+//     }
+
+//     return config;
+// });
 
 api.interceptors.response.use(
     (response) => response,
