@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Repository, FindOptionsWhere, DeepPartial, FindManyOptions } from 'typeorm';
 import { BaseEntity } from './base.entity';
-import { InjectRepository } from '@nestjs/typeorm';
 
 @Injectable()
 export abstract class BaseService<T extends BaseEntity> {
