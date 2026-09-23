@@ -15,4 +15,11 @@ export abstract class BaseEntity {
         name: 'updated_at',
     })
     updatedAt!: Date;
+
+    @UpdateDateColumn({
+        type: 'timestamp',
+        name: 'deleted_at',
+        nullable: true,
+    })
+    deletedAt!: Date;
 }

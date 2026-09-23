@@ -1,5 +1,5 @@
 import { BaseEntity } from '../../base.entity';
-import { Column, Entity, Index } from 'typeorm';
+import { Column, Entity } from 'typeorm';
 
 @Entity({ name: 'user' })
 export class UserEntity extends BaseEntity {
@@ -11,4 +11,7 @@ export class UserEntity extends BaseEntity {
 
     @Column({ name: 'hash_password' })
     hashPassword!: string;
+
+    @Column({ name: 'phone_number', unique: true, nullable: true })
+    phoneNumber!: string;
 }

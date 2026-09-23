@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsEmail, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateUserDto {
     @Transform(({ value }: { value: string }) => (typeof value === 'string' ? value.trim() : value))
@@ -19,4 +19,10 @@ export class CreateUserDto {
     @IsNotEmpty()
     @MaxLength(255)
     password!: string;
+
+    @Transform(({ value }: { value: string }) => (typeof value === 'string' ? value.trim() : value))
+    @IsString()
+    @IsOptional()
+    @MaxLength(20)
+    phoneNumber?: string;
 }
