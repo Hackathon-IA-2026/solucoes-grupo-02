@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import type { Session, User } from '../types';
-import { TOKEN_KEY } from '../api/http';
+import { TOKEN_KEY } from '../api/api';
 
 const USER_KEY = 'es-user';
 

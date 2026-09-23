@@ -1,7 +1,6 @@
 import { BaseEntity } from '../../base.entity';
-import { Column, Entity, Index } from 'typeorm';
+import { Column, Entity } from 'typeorm';
 
-@Index(['email'], { unique: true, where: '"deleted_at" IS NULL' })
 @Entity({ name: 'user' })
 export class UserEntity extends BaseEntity {
     @Column()
