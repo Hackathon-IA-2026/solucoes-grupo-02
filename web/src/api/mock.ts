@@ -228,8 +228,6 @@ export const api: Api = {
                 ...usuario,
                 name: input.name,
                 email: input.email,
-                company: input.company,
-                cnpj: input.cnpj,
                 role: input.role,
                 initials,
             },

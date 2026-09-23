@@ -86,8 +86,5 @@ export interface RegisterInput {
     name: string;
     email: string;
     password: string;
-    company: string;
-    cnpj: string;
     role: string;
-    kind: string;
 }

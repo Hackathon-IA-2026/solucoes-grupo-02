@@ -1,11 +1,11 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards, Request, Delete, Param } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { LocalAuthGuard } from './guards/local-auth.guard';
 import { UserService } from '@/user/user.service';
 import { CreateUserDto } from '@/user/dto/create-user.dto';
 import { IsPublic } from './decorators/is-public.decorator';
+import { LocalAuthGuard } from './guards/local-auth.guard';
 import { UserPayload } from './types/user.payload.type';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -19,15 +19,15 @@ export class AuthController {
     @UseGuards(LocalAuthGuard)
     @Post('login')
     async signIn(@Request() req: { user: UserPayload }) {
-        return await this.authService.generateJwtToken(req.user);
+        return await this.authService.buildSession(req.user.id);
     }
 
     @IsPublic()
-    @Post('create-user')
+    @Post('register')
     @HttpCode(HttpStatus.CREATED)
-    async createUser(@Body() dto: CreateUserDto) {
-        const user = this.userService.createUser(dto);
-        return await this.authService.generateJwtToken((await user).id);
+    async register(@Body() dto: CreateUserDto) {
+        const user = await this.userService.createUser(dto);
+        return await this.authService.buildSession(user.id);
     }
 
     @UseGuards(JwtAuthGuard)

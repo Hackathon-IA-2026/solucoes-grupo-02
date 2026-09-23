@@ -14,4 +14,6 @@ export class UserEntity extends BaseEntity {
 
     @Column({ name: 'phone_number', unique: true, nullable: true })
     phoneNumber!: string;
+    @Column({ nullable: true })
+    role?: string;
 }

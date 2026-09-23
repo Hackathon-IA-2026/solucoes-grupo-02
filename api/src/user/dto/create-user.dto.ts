@@ -25,4 +25,6 @@ export class CreateUserDto {
     @IsOptional()
     @MaxLength(20)
     phoneNumber?: string;
+    @MaxLength(255)
+    role?: string;
 }

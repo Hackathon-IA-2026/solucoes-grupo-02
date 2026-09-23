@@ -11,10 +11,12 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserEntity } from '../user/entities/user.entity';
+import { CompanieModule } from '../companie/companie.module';
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([UserEntity]),
+        CompanieModule,
         JwtModule.registerAsync({
             global: true,
             inject: [ConfigService],
