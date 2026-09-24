@@ -16,4 +16,7 @@ export class UserEntity extends BaseEntity {
     phoneNumber!: string;
     @Column({ nullable: true })
     role?: string;
+
+    @Column({ name: 'monthly_report_enabled', default: false })
+    monthlyReportEnabled!: boolean;
 }

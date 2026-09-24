@@ -1,16 +1,17 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useMemo, useState, type ReactNode } from 'react';
 import type { Session, User } from '../types';
-import { TOKEN_KEY } from '../api/api';
+import { TOKEN_KEY } from '../services/api/api';
 
 const USER_KEY = 'es-user';
 
-interface Ctx {
+export interface AuthCtxValue {
   user: User | null;
   entrar: (s: Session) => void;
+  atualizarUsuario: (u: User) => void;
   sair: () => void;
 }
 
-const AuthCtx = createContext<Ctx>(null!);
+export const AuthCtx = createContext<AuthCtxValue>(null!);
 
 function guardado(): User | null {
   try {
@@ -24,7 +25,7 @@ function guardado(): User | null {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(guardado);
 
-  const valor = useMemo<Ctx>(
+  const valor = useMemo<AuthCtxValue>(
     () => ({
       user,
       entrar: (s) => {
@@ -32,6 +33,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           localStorage.setItem(TOKEN_KEY, s.token);
           localStorage.setItem(USER_KEY, JSON.stringify(s.user));
+        } catch {}
+      },
+      atualizarUsuario: (u) => {
+        setUser(u);
+        try {
+          localStorage.setItem(USER_KEY, JSON.stringify(u));
         } catch {}
       },
       sair: () => {
@@ -47,5 +54,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return <AuthCtx.Provider value={valor}>{children}</AuthCtx.Provider>;
 }
-
-export const useAuth = () => useContext(AuthCtx);

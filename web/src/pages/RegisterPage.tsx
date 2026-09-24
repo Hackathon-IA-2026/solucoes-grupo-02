@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, MODO_MOCK } from '../api';
-import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
+import { api, MODO_MOCK } from '../services/api';
+import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../hooks/useToast';
 import { BackButton, Button, Field, LinkButton } from '../components/ui';
 import { AuthLayout } from './AuthLayout';
 

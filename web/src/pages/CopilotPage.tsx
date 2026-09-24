@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { api } from '../api';
+import { api } from '../services/api';
 import { TELA } from '../components/AppShell';
 import { Button, PageHead, cx } from '../components/ui';
-import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
+import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../hooks/useToast';
 import type { Citation } from '../types';
 
 interface Mensagem {

@@ -6,6 +6,14 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { resolve } from 'path';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { PlantModule } from './plant/plant.module';
+import { TrechoModule } from './trecho/trecho.module';
+import { NormaModule } from './norma/norma.module';
+import { MateriaDouModule } from './materia-dou/materia-dou.module';
+import { ExtracaoModule } from './extracao/extracao.module';
+import { LimiteModule } from './limite/limite.module';
+import { AlertaModule } from './alerta/alerta.module';
+import { CopilotModule } from './copilot/copilot.module';
 
 @Module({
     imports: [
@@ -16,6 +24,14 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
         DatabaseModule,
         AuthModule,
         UserModule,
+        PlantModule,
+        TrechoModule,
+        NormaModule,
+        MateriaDouModule,
+        ExtracaoModule,
+        LimiteModule,
+        AlertaModule,
+        CopilotModule,
     ],
     controllers: [AppController],
     providers: [

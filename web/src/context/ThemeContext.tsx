@@ -1,16 +1,16 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useEffect, useState, type ReactNode } from 'react';
 
 export type Tema = 'light' | 'dark' | 'auto';
 export type Destaque = 'ambar' | 'turquesa' | 'coral' | 'violeta';
 
-interface Ctx {
+export interface ThemeCtxValue {
   tema: Tema;
   destaque: Destaque;
   setTema: (t: Tema) => void;
   setDestaque: (d: Destaque) => void;
 }
 
-const ThemeCtx = createContext<Ctx>(null!);
+export const ThemeCtx = createContext<ThemeCtxValue>(null!);
 
 function ler<T>(chave: string, padrao: T): T {
   try {
@@ -42,5 +42,3 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   return <ThemeCtx.Provider value={{ tema, destaque, setTema, setDestaque }}>{children}</ThemeCtx.Provider>;
 }
-
-export const useTheme = () => useContext(ThemeCtx);

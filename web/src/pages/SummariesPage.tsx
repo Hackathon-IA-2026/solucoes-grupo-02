@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '../api';
+import { api } from '../services/api';
 import { TELA } from '../components/AppShell';
 import { Button, ImpactBadge, PageHead, SrcBadge, cx } from '../components/ui';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../hooks/useToast';
 
 export function SummariesPage() {
   const [params] = useSearchParams();
