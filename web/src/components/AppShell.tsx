@@ -24,6 +24,7 @@ export function AppShell() {
   const navigate = useNavigate();
   const { data: usina } = useQuery({ queryKey: ['plant'], queryFn: api.getPlant });
   const { data: alertas } = useQuery({ queryKey: ['alerts'], queryFn: api.listAlerts });
+  const naoLidos = alertas?.filter((a) => !a.lido).length ?? 0;
 
   return (
     <div className="grid min-h-screen md:grid-cols-[236px_minmax(0,1fr)]">
@@ -37,9 +38,9 @@ export function AppShell() {
                 {i.icone}
               </svg>
               {i.rotulo}
-              {i.to === '/alertas' && alertas?.length ? (
+              {i.to === '/alertas' && naoLidos ? (
                 <span className="absolute right-[calc(50%-20px)] top-0.5 rounded-full bg-accent px-[5px] text-[10px] font-bold tabular-nums text-accent-on md:static md:ml-auto md:px-[7px] md:py-px md:text-[11.5px]">
-                  {alertas.length}
+                  {naoLidos}
                 </span>
               ) : null}
             </NavLink>
@@ -81,9 +82,9 @@ export function AppShell() {
                 <path d="M18 9a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7" />
                 <path d="M10.5 20a2 2 0 0 0 3 0" />
               </svg>
-              {alertas?.length ? (
+              {naoLidos ? (
                 <span className="absolute -right-1.5 -top-1.5 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-danger px-1 text-[10.5px] font-bold tabular-nums text-white">
-                  {alertas.length}
+                  {naoLidos}
                 </span>
               ) : null}
             </button>

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { MoreThanOrEqual, Repository } from 'typeorm';
 import { BaseService } from '../base.service';
 import { AlertaEntity } from './entities/alerta.entity';
 import { CreateAlertaDto } from './dto/create-alerta.dto';
@@ -29,6 +29,8 @@ export function toAlertResponse(alerta: AlertaEntity) {
         message: alerta.mensagem,
         at: formatAt(alerta.createdAt),
         lido: alerta.lido,
+        tipo: alerta.tipo,
+        normId: alerta.normaId,
     };
 }
 
@@ -47,6 +49,10 @@ export class AlertaService extends BaseService<AlertaEntity> {
 
     async list(): Promise<AlertaEntity[]> {
         return await this.findAllInstances({ order: { createdAt: 'DESC' } });
+    }
+
+    async listSince(desde: Date): Promise<AlertaEntity[]> {
+        return await this.findAllInstances({ where: { createdAt: MoreThanOrEqual(desde) }, order: { createdAt: 'DESC' } });
     }
 
     async existsUnreadForLimite(limiteId: string): Promise<boolean> {

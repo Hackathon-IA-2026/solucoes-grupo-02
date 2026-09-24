@@ -43,6 +43,10 @@ export const api: Api = {
         const { data } = await client.post('/alerts/check');
         return data;
     },
+    markAlertRead: async (id) => {
+        const { data } = await client.patch(`/alerts/${id}/read`);
+        return data;
+    },
     listNoticias: async (setor) => {
         const { data } = await client.get(`/noticias${setor ? `?setor=${encodeURIComponent(setor)}` : ''}`);
         return data;

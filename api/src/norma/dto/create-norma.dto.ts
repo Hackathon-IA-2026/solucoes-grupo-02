@@ -20,6 +20,10 @@ export class CreateNormaDto {
     @IsOptional()
     deadline?: string;
 
+    @IsDateString()
+    @IsOptional()
+    deadlineAt?: string;
+
     @IsArray()
     @IsString({ each: true })
     @IsOptional()

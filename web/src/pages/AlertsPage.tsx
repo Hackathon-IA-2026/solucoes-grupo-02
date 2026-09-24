@@ -1,13 +1,27 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
 import { TELA } from '../components/AppShell';
 import { Button, CAMPO, Chip, PageHead, Panel, PanelTitle, ROTULO, SwitchRow, cx, fmt } from '../components/ui';
 import { useToast } from '../hooks/useToast';
-import type { Plant } from '../types';
+import type { Alert, Plant } from '../types';
 
 const AREAS = ['Eólica', 'Solar', 'Hidrelétrica', 'Biomassa', 'Térmica', 'Transmissão', 'Armazenamento'];
-const SUBAREAS = ['Outorga e autorização', 'Tarifas e encargos', 'Conexão e acesso', 'Geração distribuída', 'Leilões', 'Licenciamento ambiental', 'Medição e faturamento'];
+// Os nomes precisam bater com a TAXONOMIA do classificador (ai/models/classfier.py) — é por
+// eles que o motor decide se uma norma nova gera alerta (ignorando acento e maiúsculas).
+const SUBAREAS = [
+  'Outorga e autorização',
+  'Conexão e acesso',
+  'Geração distribuída',
+  'Cortes de geração',
+  'Autorização de armazenamento',
+  'Conexão e faturamento de armazenamento',
+  'Tarifas e encargos',
+  'Leilões',
+  'Licenciamento ambiental',
+  'Medição e faturamento',
+];
 const FREQUENCIAS = ['Imediato', 'Resumo diário', 'Resumo semanal'];
 const SUBMERCADOS = ['Nordeste', 'Sudeste/Centro-Oeste', 'Sul', 'Norte'];
 const AMBIENTES = ['Livre (ACL)', 'Regulado (ACR)', 'Ambos'];
@@ -17,6 +31,7 @@ const SEV: Record<string, string> = { alto: 'bg-danger', medio: 'bg-accent', bai
 export function AlertsPage() {
   const toast = useToast();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { data } = useQuery({ queryKey: ['plant'], queryFn: api.getPlant });
   const { data: alertas = [] } = useQuery({ queryKey: ['alerts'], queryFn: api.listAlerts });
   const [form, setForm] = useState<Plant | null>(null);
@@ -42,6 +57,17 @@ export function AlertsPage() {
     },
     onError: (e) => toast(e instanceof Error ? e.message : 'Não foi possível salvar.'),
   });
+
+  const marcarLido = useMutation({
+    mutationFn: (id: string) => api.markAlertRead(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts'] }),
+  });
+
+  // Abrir o alerta marca como lido (apaga o contador do menu) e leva ao resumo da norma de origem.
+  const abrir = (a: Alert) => {
+    if (!a.lido) marcarLido.mutate(a.id);
+    if (a.normId) navigate(`/resumos?norma=${a.normId}`);
+  };
 
   if (!form) return <section className={TELA}>Carregando…</section>;
 
@@ -173,17 +199,25 @@ export function AlertsPage() {
           </Panel>
 
           <Panel>
-            <PanelTitle titulo="Alertas disparados" hint="Últimos 7 dias" />
+            <PanelTitle titulo="Alertas disparados" hint="Abra um alerta para marcá-lo como lido" />
             <div className="mt-2.5">
+              {alertas.length === 0 && <p className="py-[13px] text-[13px] text-ink-2">Nenhum alerta por enquanto.</p>}
               {alertas.map((a) => (
-                <div key={a.id} className="flex gap-3 border-b border-line py-[13px] last:border-b-0">
-                  <span className={cx('w-[3px] shrink-0 rounded-sm', SEV[a.severity])} />
-                  <div>
-                    <h4 className="text-[14.2px] font-semibold leading-snug">{a.title}</h4>
-                    <p className="mt-[3px] text-[13px] text-ink-2">{a.message}</p>
-                    <time className="mt-[5px] block text-xs text-ink-3">{a.at}</time>
-                  </div>
-                </div>
+                <button
+                  key={a.id}
+                  onClick={() => abrir(a)}
+                  className="flex w-full gap-3 border-b border-line py-[13px] text-left transition-colors last:border-b-0 hover:bg-surface-2"
+                >
+                  <span className={cx('w-[3px] shrink-0 rounded-sm', SEV[a.severity], a.lido && 'opacity-40')} />
+                  <span className="block">
+                    <span className={cx('block text-[14.2px] leading-snug', a.lido ? 'font-medium text-ink-2' : 'font-semibold')}>{a.title}</span>
+                    <span className="mt-[3px] block text-[13px] text-ink-2">{a.message}</span>
+                    <time className="mt-[5px] block text-xs text-ink-3">
+                      {a.at}
+                      {!a.lido && ' · novo'}
+                    </time>
+                  </span>
+                </button>
               ))}
             </div>
           </Panel>

@@ -22,6 +22,11 @@ export class NormaEntity extends BaseEntity {
     @Column({ nullable: true })
     deadline?: string;
 
+    // Data do próximo prazo (o `deadline` acima é o texto pra exibir) — o painel usa
+    // pra contar "prazos que vencem esta semana".
+    @Column({ name: 'deadline_at', type: 'date', nullable: true })
+    deadlineAt?: string;
+
     @Column({ type: 'text', array: true, default: '{}' })
     changes!: string[];
 

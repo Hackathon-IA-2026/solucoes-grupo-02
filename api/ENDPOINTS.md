@@ -44,7 +44,14 @@
 
 - GET /alerts - Lista os alertas da empresa logada (ordem cronológica).
 - POST /alerts/check - **Cruza `limites` × `configuracoes` de verdade** (o "Motor de Alertas: Cruza Lei x Perfil" do diagrama) e cria um alerta pra cada regra descumprida (sem duplicar se já existe um alerta não lido pro mesmo limite). Dispara e-mail pros usuários se `channels.email` estiver ligado no perfil da usina. O front chama isso logo depois de `PUT /plants/me`.
-- PATCH /alerts/:id/read - Marca o alerta como lido (para apagar a bolinha de notificação no front).
+- PATCH /alerts/:id/read - Marca o alerta como lido (para apagar a bolinha de notificação no front). O front chama ao abrir um alerta na Central de Alertas.
+
+Tipos de alerta (`tipo` na resposta, junto com `normId` e `lido`):
+
+- `limite_excedido` - um `limite` extraído de uma norma não é cumprido pelos dados da usina.
+- `norma_nova` - a ingestão trouxe uma norma cuja área/subárea (do classificador) está entre as `areas`/`subareas` monitoradas em `/plants/me`. Sem subárea marcada, casa só pela área; sem área marcada, não gera alerta. A comparação ignora acento e maiúsculas.
+
+E-mail: com `frequency = "Imediato"` o e-mail sai na hora. Com `"Resumo diário"` ou `"Resumo semanal"`, os alertas ficam para o cron (`AlertDigestService`: todo dia às 8h / segunda às 8h, horário de Brasília), que manda um e-mail só com os alertas do período.
 
 > `parametro` em `limites` precisa bater com um campo numérico de `configuracoes` (`capacityMw`, `co2` ou `availability`) pro motor saber o que comparar — é uma convenção, não uma FK.
 
@@ -55,11 +62,55 @@
 - GET /chat/:sessionId/messages - Carrega as mensagens de um chat específico.
 - POST /chat/:sessionId/message - Salva a pergunta, gera a resposta e salva a resposta, devolve pro front.
 
-> Implementado, mas **sem o microsserviço Python/RAG real** — a "geração de resposta" hoje é busca por palavra-chave nos `trechos` (`TrechoService.searchByText`), não embedding + LLM. Trocar a implementação interna de `CopilotService.ask()` quando o serviço de IA existir; os endpoints e o histórico de conversas já ficam prontos.
+> Com `AI_SERVICE_URL` no `.env`, a pergunta vai para o microsserviço Python de RAG: `POST {AI_SERVICE_URL}/ask` com `{ "question": "...", "perfil": { ...mesmo formato de GET /plants/me } }`, esperando `{ "answer": "texto (markdown simples: **negrito** e listas com -)", "citations": [{ "label": "REN 1.000/2021, art. 5º", "excerpt": "trecho literal", "normId": "uuid?" }] }`. A API converte `answer` em HTML escapado (o LLM lê texto externo e não pode injetar HTML no front).
+>
+> Sem `AI_SERVICE_URL`, ou se o serviço falhar, a resposta é a busca por palavra-chave nos `trechos` (`TrechoService.searchByText`, ignorando acentos).
 
-## Rotas internas (se der tempo)
+## Health
 
-Disparam as etapas pesadas do pipeline. Protegidas por uma chave própria e nunca expostas no front.
+- GET /health - Confirma que a API e o banco estão no ar (pública, para o deploy). `{ "status": "ok" }` ou 503.
+
+## Rotas internas (/interno)
+
+Chamadas pelo serviço Python, nunca pelo front. Sem JWT: exigem o header `x-internal-key` igual ao `INTERNAL_API_KEY` do `.env` (sem a variável, respondem 503).
+
+> No deploy da AWS a API fica sob `/api` (ex.: `/api/interno/ingestao`); no docker-compose é direto (`http://api:3000/interno/ingestao`).
+
+### POST /interno/ingestao
+
+Recebe o DataFrame final do pipeline (`coletar_df` em `ai/models/summarizer.py`) e grava, numa transação por norma: `normas`, `extracoes`, `limites` e `trechos`. Depois cria os alertas (`norma_nova` e `limite_excedido`) e dispara o e-mail conforme a frequência. Responde **200**.
+
+Do lado do Python, basta:
+
+```python
+import json, os, requests
+corpo = {"normas": json.loads(df_final.to_json(orient="records", force_ascii=False))}
+requests.post(f"{API_URL}/interno/ingestao", json=corpo, headers={"x-internal-key": os.environ["INTERNAL_API_KEY"]}, timeout=120)
+```
+
+(`to_json` em vez de `to_dict` porque converte o `NaN` do pandas em `null` — `NaN` não é JSON válido.)
+
+Colunas lidas de cada linha (as demais são ignoradas; todas opcionais, menos `titulo` e `texto` ou `link`):
+
+| Coluna | Vira |
+| --- | --- |
+| `titulo` | `code` ("Despacho nº 2.345/2026", usando `tipo` + número do título) |
+| `titulo_curto` | manchete do card; sem ela, usa a 1ª frase de `resumo` |
+| `data` (`DD/MM/AAAA` ou ISO), `orgao`, `tipo`, `link` | `publishedAt`, `orgao`, `tipo`, `url` (a fonte `aneel`/`ccee`/`dou` sai do domínio do link, ou de `fonte`) |
+| `texto` | `textoCompleto`, `hash` (sha256, usado junto com o `link` para ignorar duplicadas) e os `trechos` (quebrados por artigo) |
+| `area`, `subarea` (listas do classificador, ex.: `["Solar > Geração distribuída"]`) | usados pelo alerta `norma_nova` |
+| `relevancia` (0–3) | `impact`: 3 = alto, 2 = médio, resto = baixo |
+| `resumo` | `lead` e `extracoes.resumo` (ignorado se começar com "ERRO") |
+| `mudancas` (`o_que_mudou`, `antes`, `depois`) | `changes` ("o que muda") |
+| `prazos` (`data`, `descricao`) | `deadline` / `deadlineAt`: o próximo prazo ainda não vencido |
+| `acao_necessaria`, `quem_e_afetado` | `why` ("por que importa") |
+| `limites` (`parametro`, `operador`, `valor`, `unidade?`, `artigo?`, `trecho?`, `vigencia?`) | `limites` — `parametro` = `capacityMw`, `co2` ou `availability`; `operador` = `>`, `<`, `>=`, `<=` ou `=` |
+| `trechos` (`artigo?`, `texto`, `vetor?`) | `trechos` com embedding; sem essa coluna, a API quebra o `texto` por artigo, sem vetor |
+| `modelo`, `tokens_gastos` | `extracoes` |
+
+Resposta: `{ "recebidas": 3, "criadas": 2, "duplicadas": 0, "rejeitadas": [{ "indice": 2, "motivo": "sem \"titulo\"" }], "alertas": 2 }`.
+
+### Planejadas (ainda não implementadas)
 
 - POST /interno/coleta/normas Roda o coletor de normas
 - POST /interno/coleta/dou?data= Baixa e filtra o DOU de uma data
@@ -67,7 +118,6 @@ Disparam as etapas pesadas do pipeline. Protegidas por uma chave própria e nunc
 - POST /interno/alertas/recalcular Recalcula os alertas de todas as usinas
 - PATCH /interno/limites/{id} Marca um limite como aprovado_manual
 - GET /interno/execucoes Histórico de coletas e erros
-- GET /health Confirma que a API e o banco estão no ar (pública, para o deploy)
 
 # Tabelas da aplicação
 

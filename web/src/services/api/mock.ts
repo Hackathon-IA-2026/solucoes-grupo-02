@@ -43,6 +43,7 @@ export const NORMAS: Norm[] = [
         title: 'Novo critério de medição para usinas eólicas conectadas em 230 kV',
         lead: 'Registro de disponibilidade a cada 5 minutos e comunicação ao ONS em até 24 h após falha de telemedição.',
         deadline: 'Consulta pública aberta até 28/09/2026',
+        deadlineAt: '2026-09-28',
         changes: [
             'O intervalo de registro de disponibilidade cai de 30 para 5 minutos.',
             'Falha de telemedição passa a ter prazo de comunicação de 24 h, contra os 5 dias úteis atuais.',
@@ -60,6 +61,7 @@ export const NORMAS: Norm[] = [
         title: 'Atualização da tabela de encargos setoriais para o submercado Nordeste',
         lead: 'Reajuste aplicável a partir do ciclo de outubro, com nova memória de cálculo anexa.',
         deadline: 'Vigência a partir de 01/10/2026',
+        deadlineAt: '2026-10-01',
         changes: [
             'A tabela de encargos do Nordeste passa a vigorar com novos valores em outubro.',
             'A memória de cálculo anexa substitui a versão publicada em março.',
@@ -332,6 +334,13 @@ export const api: Api = {
     async checkAlerts() {
         await espera(200);
         return [];
+    },
+    async markAlertRead(id: string) {
+        await espera(120);
+        const alerta = ALERTAS.find((a) => a.id === id);
+        if (!alerta) throw new Error('Alerta não encontrado');
+        alerta.lido = true;
+        return alerta;
     },
     async listNoticias(setor?: string) {
         await espera(220);

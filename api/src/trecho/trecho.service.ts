@@ -4,6 +4,15 @@ import { Repository } from 'typeorm';
 import { BaseService } from '../base.service';
 import { TrechoEntity } from './entities/trecho.entity';
 import { CreateTrechoDto } from './dto/create-trecho.dto';
+import { normalizar } from '../utils/texto';
+
+// Palavras que não dizem nada do tema da pergunta (já sem acento, como sai do `normalizar`).
+const PALAVRAS_VAZIAS = new Set(
+    (
+        'que qual quais como para por com sem uma uns umas dos das nos nas pelo pela sobre isso esse essa este esta minha meu sua seu ' +
+        'preciso posso devo fazer quando onde norma regra ate tem ser sao foi mais muito'
+    ).split(' '),
+);
 
 function cosineSimilarity(a: number[], b: number[]): number {
     if (a.length === 0 || b.length === 0 || a.length !== b.length) return 0;
@@ -58,17 +67,17 @@ export class TrechoService extends BaseService<TrechoEntity> {
 
     // Busca por palavra-chave, sem embedding nenhum — usada pelo Copiloto enquanto
     // não existe um serviço de geração de embeddings nem um LLM configurados.
+    // Ignora acentos ("geracao" acha "geração") e palavras que não dizem nada do tema.
     async searchByText(query: string, limit = 5): Promise<TrechoEntity[]> {
-        const termos = query
-            .toLowerCase()
-            .split(/\s+/)
-            .filter((t) => t.length > 2);
+        const termos = normalizar(query)
+            .split(/[^a-z0-9]+/)
+            .filter((t) => t.length > 2 && !PALAVRAS_VAZIAS.has(t));
         if (termos.length === 0) return [];
 
         const trechos = await this.findAllInstances();
         return trechos
             .map((t) => {
-                const texto = t.texto.toLowerCase();
+                const texto = normalizar(t.texto);
                 const score = termos.reduce((acc, termo) => acc + (texto.includes(termo) ? 1 : 0), 0);
                 return { trecho: t, score };
             })

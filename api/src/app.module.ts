@@ -3,6 +3,7 @@ import { AppController } from './app.controller';
 import { UserModule } from './user/user.module';
 import { DatabaseModule } from './database/database.module';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './auth/auth.module';
 import { resolve } from 'path';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
@@ -16,6 +17,7 @@ import { AlertaModule } from './alerta/alerta.module';
 import { CopilotModule } from './copilot/copilot.module';
 import { NoticiaModule } from './noticia/noticia.module';
 import { ChatModule } from './chat/chat.module';
+import { IngestaoModule } from './ingestao/ingestao.module';
 
 @Module({
     imports: [
@@ -23,6 +25,7 @@ import { ChatModule } from './chat/chat.module';
             isGlobal: true,
             envFilePath: resolve(__dirname, '../../.env'),
         }),
+        ScheduleModule.forRoot(),
         DatabaseModule,
         AuthModule,
         UserModule,
@@ -36,6 +39,7 @@ import { ChatModule } from './chat/chat.module';
         CopilotModule,
         NoticiaModule,
         ChatModule,
+        IngestaoModule,
     ],
     controllers: [AppController],
     providers: [

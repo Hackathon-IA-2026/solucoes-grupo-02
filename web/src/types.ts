@@ -8,9 +8,11 @@ export interface Norm {
     sourceLabel: string;
     impact: Impact;
     date: string;
+    publishedAt?: string; // AAAA-MM-DD
     title: string;
     lead: string;
     deadline: string;
+    deadlineAt?: string; // AAAA-MM-DD do próximo prazo
     changes: string[];
     why: string;
     url?: string;
@@ -51,6 +53,9 @@ export interface Alert {
     title: string;
     message: string;
     at: string;
+    lido?: boolean;
+    tipo?: string; // 'norma_nova' | 'limite_excedido'
+    normId?: string;
 }
 
 export interface Citation {
@@ -108,6 +113,7 @@ export interface Api {
     updatePlant(patch: Partial<Plant>): Promise<Plant>;
     listAlerts(): Promise<Alert[]>;
     checkAlerts(): Promise<Alert[]>;
+    markAlertRead(id: string): Promise<Alert>;
     listNoticias(setor?: string): Promise<Noticia[]>;
     getNormPdf(id: string): Promise<Blob>;
     listChatSessions(): Promise<ChatSession[]>;

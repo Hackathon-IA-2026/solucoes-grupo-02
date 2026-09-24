@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api, MODO_MOCK } from '../services/api';
 import { TELA } from '../components/AppShell';
 import { Button, ImpactBadge, LimitBar, Panel, PanelTitle, SrcBadge, TagImpacto, cx, fmt } from '../components/ui';
+import { diasAte } from '../utils/format';
 import type { Source } from '../types';
 
 const FILTROS: Array<{ id: Source | 'todas'; rotulo: string }> = [
@@ -21,6 +22,13 @@ export function DashboardPage() {
   const { data: usina } = useQuery({ queryKey: ['plant'], queryFn: api.getPlant });
   const { data: normas = [], isLoading } = useQuery({ queryKey: ['norms', filtro], queryFn: () => api.listNorms(filtro) });
   const { data: todas = [] } = useQuery({ queryKey: ['norms', 'todas'], queryFn: () => api.listNorms('todas') });
+  const { data: alertas = [] } = useQuery({ queryKey: ['alerts'], queryFn: api.listAlerts });
+
+  // Norma sem data de publicação (dados do mock) conta como recente.
+  const recentes = todas.filter((n) => !n.publishedAt || diasAte(n.publishedAt) >= -7);
+  const prazosDaSemana = todas.filter((n) => n.deadlineAt && diasAte(n.deadlineAt) >= 0 && diasAte(n.deadlineAt) <= 7).length;
+  const naoLidos = alertas.filter((a) => !a.lido).length;
+  const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 
   const destaque = todas.find((n) => n.impact === 'alto') ?? todas[0];
   const margemCo2 = usina ? (1 - usina.co2 / usina.co2Limit) * 100 : 0;
@@ -33,9 +41,9 @@ export function DashboardPage() {
             <path d="M58 8 26 56h18l-8 36 38-52H56z" fill="#fff" />
           </svg>
 
-          <p className="text-[13px] font-medium text-[#9FBCDE]">Segunda, 15 de setembro · atualizado às 07h12</p>
+          <p className="text-[13px] font-medium text-[#9FBCDE]">{hoje.charAt(0).toUpperCase() + hoje.slice(1)}</p>
           <h2 className="mt-2 max-w-[22ch] text-[clamp(22px,2.4vw,30px)] font-extrabold text-white">
-            {todas.length} publicações de hoje tocam a <em className="not-italic text-accent">{usina?.name.replace('Usina ', '') ?? 'sua usina'}</em>.
+            {recentes.length} publicações dos últimos 7 dias tocam a <em className="not-italic text-accent">{usina?.name.replace('Usina ', '') ?? 'sua usina'}</em>.
           </h2>
 
           {destaque && (
@@ -103,9 +111,9 @@ export function DashboardPage() {
 
       <div className="mt-[18px] grid border-y border-line md:grid-cols-3">
         {[
-          { n: '142', t: 'normas lidas em 7 dias' },
-          { n: '4', t: 'alertas aguardando ação' },
-          { n: '2', t: 'prazos vencem esta semana' },
+          { n: recentes.length, t: 'normas lidas em 7 dias' },
+          { n: naoLidos, t: 'alertas aguardando ação' },
+          { n: prazosDaSemana, t: 'prazos vencem nos próximos 7 dias' },
         ].map((s, i) => (
           <div key={s.t} className={cx('px-[18px] py-3.5', i > 0 && 'border-t border-line md:border-l md:border-t-0')}>
             <b className="block font-display text-2xl font-bold tabular-nums">{s.n}</b>

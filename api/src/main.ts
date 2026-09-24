@@ -7,6 +7,10 @@ import { AppModule } from './app.module';
 async function bootstrap() {
     const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
+    // A ingestão (POST /interno/ingestao) recebe o texto completo de cada norma —
+    // o limite padrão do Express (100 kB) não comporta nem uma coleta de um dia.
+    app.useBodyParser('json', { limit: '20mb' });
+
     // No deploy (ver infra/), a API também serve o build do web na mesma URL.
     // As rotas da API vão para /api porque o front tem rotas com o mesmo nome (ex.: /noticias).
     const webDir = process.env.WEB_DIST_DIR;
