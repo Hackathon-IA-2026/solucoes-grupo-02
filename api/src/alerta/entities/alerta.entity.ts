@@ -1,14 +1,22 @@
 import { BaseEntity } from '../../base.entity';
-import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { NormaEntity } from '../../norma/entities/norma.entity';
 import { LimiteEntity } from '../../limite/entities/limite.entity';
+import { CompanieEntity } from '../../companie/entities/companie.entity';
 
 export type AlertaSeveridade = 'alto' | 'medio' | 'baixo';
 
 @Entity({ name: 'alertas' })
 export class AlertaEntity extends BaseEntity {
-    // Como cada instância/banco é de uma única usina (empresa fixa via .env),
-    // não precisa de FK pra "usina" — é implícito.
+    // Cada empresa tem uma usina, então o alerta é da empresa. Nulo só em alertas
+    // antigos, até a migração da inicialização.
+    @Index()
+    @Column({ name: 'company_id', type: 'uuid', nullable: true })
+    companyId?: string;
+
+    @ManyToOne(() => CompanieEntity, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'company_id' })
+    company?: CompanieEntity;
 
     @Column({ name: 'limite_id', type: 'uuid', nullable: true })
     limiteId?: string;

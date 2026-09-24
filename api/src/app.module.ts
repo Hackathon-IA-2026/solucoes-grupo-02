@@ -18,6 +18,7 @@ import { CopilotModule } from './copilot/copilot.module';
 import { NoticiaModule } from './noticia/noticia.module';
 import { ChatModule } from './chat/chat.module';
 import { IngestaoModule } from './ingestao/ingestao.module';
+import { CompanieModule } from './companie/companie.module';
 
 @Module({
     imports: [
@@ -27,6 +28,7 @@ import { IngestaoModule } from './ingestao/ingestao.module';
         }),
         ScheduleModule.forRoot(),
         DatabaseModule,
+        CompanieModule,
         AuthModule,
         UserModule,
         PlantModule,

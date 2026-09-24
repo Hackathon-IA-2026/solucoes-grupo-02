@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 import { BaseService } from '../base.service';
 import { PlantEntity } from './entities/plant.entity';
 import { UpdatePlantDto } from './dto/update-plant.dto';
@@ -37,14 +37,20 @@ export class PlantService extends BaseService<PlantEntity> {
         super(plantRepository);
     }
 
-    async getPlant(): Promise<PlantEntity> {
-        const [existing] = await this.findAllInstances({ take: 1 });
+    // Cada empresa tem uma configuração de usina (criada no cadastro; se faltar, nasce com os padrões).
+    async getPlant(companyId: string): Promise<PlantEntity> {
+        const existing = await this.repository.findOneBy({ companyId });
         if (existing) return existing;
-        return await this.persist({});
+        return await this.persist({ companyId });
     }
 
-    async updatePlant(patch: UpdatePlantDto): Promise<PlantEntity> {
-        const plant = await this.getPlant();
+    // Todas as usinas com empresa — o motor de alertas avalia cada uma.
+    async listAll(): Promise<PlantEntity[]> {
+        return await this.findAllInstances({ where: { companyId: Not(IsNull()) } });
+    }
+
+    async updatePlant(companyId: string, patch: UpdatePlantDto): Promise<PlantEntity> {
+        const plant = await this.getPlant(companyId);
         const { id, ...safePatch } = patch;
         return await this.updateInstance(plant.id, safePatch as Partial<PlantEntity>);
     }

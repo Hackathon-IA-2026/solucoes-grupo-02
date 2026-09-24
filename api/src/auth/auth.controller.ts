@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, Get, HttpCode, HttpStatus, Post, Put, UseGuards, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { UserService } from '@/user/user.service';
-import { CreateUserDto } from '@/user/dto/create-user.dto';
+import { RegisterDto } from './dto/register.dto';
 import { UpdateProfileDto } from '@/user/dto/update-profile.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -28,9 +28,8 @@ export class AuthController {
     @IsPublic()
     @Post('register')
     @HttpCode(HttpStatus.CREATED)
-    async register(@Body() dto: CreateUserDto) {
-        const user = await this.userService.createUser(dto);
-        return await this.authService.buildSession(user.id);
+    async register(@Body() dto: RegisterDto) {
+        return await this.authService.registrar(dto);
     }
 
     @IsPublic()
@@ -51,14 +50,13 @@ export class AuthController {
     @UseGuards(JwtAuthGuard)
     @Get('me')
     async getMe(@Request() req: { user: UserPayload }) {
-        const user = await this.userService.findUserById(req.user.id);
-        return this.authService.buildUserResponse(user);
+        return await this.authService.me(req.user.id);
     }
 
     @UseGuards(JwtAuthGuard)
     @Put('me')
     async updateMe(@Request() req: { user: UserPayload }, @Body() dto: UpdateProfileDto) {
-        const user = await this.userService.updateProfile(req.user.id, dto);
-        return this.authService.buildUserResponse(user);
+        await this.userService.updateProfile(req.user.id, dto);
+        return await this.authService.me(req.user.id);
     }
 }

@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, MODO_MOCK } from '../services/api';
+import { api } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import { BackButton, Button, Field, LinkButton } from '../components/ui';
 import { AuthLayout } from './AuthLayout';
+import { cnpjValido, mascararCnpj } from '../utils/cnpj';
 
 function forca(senha: string) {
   if (!senha) return 0;
@@ -19,7 +20,7 @@ const COR_FORCA = ['bg-line', 'bg-danger', 'bg-warn', 'bg-ok'];
 
 export function RegisterPage() {
   const [passo, setPasso] = useState(1);
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: '' });
+  const [form, setForm] = useState({ companyName: '', cnpj: '', name: '', email: '', password: '', role: '' });
   const [termos, setTermos] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const { entrar } = useAuth();
@@ -38,6 +39,9 @@ export function RegisterPage() {
   const set = (campo: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [campo]: e.target.value }));
 
   async function criarConta() {
+    if (!form.companyName.trim()) return toast('Informe a razão social da empresa.');
+    if (!cnpjValido(form.cnpj)) return toast('Confira o CNPJ — os dígitos verificadores não batem.');
+    if (!form.name.trim() || !form.email.trim() || !form.password) return toast('Preencha nome, e-mail e senha.');
     if (!termos) {
       toast('Aceite os termos de uso para criar a conta.');
       return;
@@ -59,9 +63,26 @@ export function RegisterPage() {
 
       {passo === 1 && (
         <div>
-          <h2 className="text-[26px] font-bold">Criar conta</h2>
-          <p className="mt-2 text-[14.5px] text-ink-2">Seus dados de acesso. A empresa já está configurada para essa conta.</p>
+          <h2 className="text-[26px] font-bold">Cadastrar empresa</h2>
+          <p className="mt-2 text-[14.5px] text-ink-2">
+            Você será o administrador da conta da empresa e poderá convidar sua equipe depois. Se a empresa já usa o Energy Start, peça um convite a um
+            administrador dela.
+          </p>
 
+          <Field label="Razão social" id="cad-empresa" placeholder="Serra do Vento Energia S.A." value={form.companyName} onChange={set('companyName')} />
+          <Field
+            label="CNPJ"
+            id="cad-cnpj"
+            inputMode="numeric"
+            placeholder="00.000.000/0000-00"
+            className="tabular-nums"
+            value={form.cnpj}
+            onChange={(e) => setForm((f) => ({ ...f, cnpj: mascararCnpj(e.target.value) }))}
+          >
+            {form.cnpj.length === 18 && !cnpjValido(form.cnpj) && <p className="mt-1.5 text-[12.4px] text-danger">CNPJ inválido.</p>}
+          </Field>
+
+          <h3 className="mt-[26px] text-[15.5px] font-bold">Seus dados de acesso</h3>
           <Field label="Nome completo" id="cad-nome" placeholder="Mariana Coelho" value={form.name} onChange={set('name')} />
           <Field label="E-mail corporativo" id="cad-email" type="email" placeholder="voce@suaempresa.com.br" value={form.email} onChange={set('email')} />
           <Field label="Seu cargo" id="cad-cargo" placeholder="Coordenação regulatória" value={form.role} onChange={set('role')} />
@@ -88,7 +109,7 @@ export function RegisterPage() {
           </label>
 
           <Button bloco className="mt-5" onClick={criarConta} disabled={enviando}>
-            {enviando ? 'Criando…' : 'Criar conta'}
+            {enviando ? 'Cadastrando…' : 'Cadastrar empresa'}
           </Button>
           <p className="mt-[26px] text-center text-sm text-ink-2">
             Já tem conta? <LinkButton onClick={() => navigate('/entrar')}>Entrar</LinkButton>
@@ -101,30 +122,24 @@ export function RegisterPage() {
           <div className="text-center">
             <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-surface-2">
               <svg viewBox="0 0 24 24" className="h-[25px] w-[25px] fill-none stroke-brand stroke-[1.6] [stroke-linecap:round] [stroke-linejoin:round]">
-                <rect x="3" y="5" width="18" height="14" rx="2" />
-                <path d="m3.5 7 8.5 6 8.5-6" />
+                <path d="m5 12.5 4.5 4.5L19 7.5" />
               </svg>
             </div>
-            <h2 className="text-[22px] font-bold">Confirme seu e-mail</h2>
-            <p className="mx-auto mt-2.5 max-w-[36ch] text-sm text-ink-2">
-              Enviamos um link de confirmação para <span className="font-semibold text-ink">{form.email || 'seu e-mail'}</span>. Ele vale por 24 horas.
+            <h2 className="text-[22px] font-bold">Empresa cadastrada</h2>
+            <p className="mx-auto mt-2.5 max-w-[38ch] text-sm text-ink-2">
+              A conta da <span className="font-semibold text-ink">{form.companyName}</span> está pronta e você é o administrador. Configure os alertas da
+              usina e, quando quiser, convide sua equipe em Perfil › Equipe.
             </p>
           </div>
           <Button
             bloco
             className="mt-[22px]"
             onClick={() => {
-              toast('Conta criada. Configure seus alertas para começar.');
               navigate('/alertas');
             }}
           >
-            Ir para o painel
+            Configurar alertas
           </Button>
-          {MODO_MOCK && (
-            <p className="mt-[22px] rounded-r-sm border-l-[3px] border-accent bg-surface-2 px-[13px] py-[11px] text-[13px] text-ink-2">
-              Com dados locais a confirmação já está feita — o botão abre o sistema direto.
-            </p>
-          )}
         </div>
       )}
     </AuthLayout>

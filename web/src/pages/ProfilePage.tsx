@@ -71,7 +71,7 @@ export function ProfilePage() {
                         <div>
                             <h3 className="text-lg font-bold">{form.name}</h3>
                             <p className="mt-[3px] text-[12.8px] text-ink-3">
-                                {form.role} · {data?.company}
+                                {[form.role, data?.company, data?.isAdmin && 'Administrador'].filter(Boolean).join(' · ')}
                             </p>
                         </div>
                     </div>
@@ -96,7 +96,7 @@ export function ProfilePage() {
                     </div>
 
                     <h3 className="mt-[26px] text-[15.5px] font-bold">Empresa</h3>
-                    <p className="mt-1 text-[12.4px] text-ink-3">Definida pela sua organização, não é editável por aqui.</p>
+                    <p className="mt-1 text-[12.4px] text-ink-3">Definida no cadastro da empresa, não é editável por aqui.</p>
                     <div className="mt-3 grid gap-3.5 md:grid-cols-2">
                         <label>
                             <span className={ROTULO}>Razão social</span>
@@ -108,9 +108,16 @@ export function ProfilePage() {
                         </label>
                     </div>
 
-                    <Button className="mt-6" onClick={() => salvar.mutate()} disabled={salvar.isPending}>
-                        {salvar.isPending ? 'Salvando…' : 'Salvar alterações'}
-                    </Button>
+                    <div className="mt-6 flex flex-wrap gap-2.5">
+                        <Button onClick={() => salvar.mutate()} disabled={salvar.isPending}>
+                            {salvar.isPending ? 'Salvando…' : 'Salvar alterações'}
+                        </Button>
+                        {data?.isAdmin && (
+                            <Button variante="ghost" onClick={() => navigate('/equipe')}>
+                                Gerenciar equipe
+                            </Button>
+                        )}
+                    </div>
                 </Panel>
 
                 <div>

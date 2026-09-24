@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { api } from '../services/api';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { api, MODO_MOCK } from '../services/api';
 import { useToast } from '../hooks/useToast';
 import { BackButton, Button, Field, cx } from '../components/ui';
 import { AuthLayout } from './AuthLayout';
 
 export function ForgotPasswordPage() {
-    const [passo, setPasso] = useState(1);
+    // O link do e-mail ("esqueci a senha" ou convite de um admin) traz o token na URL e abre direto na etapa da senha.
+    const [params] = useSearchParams();
+    const token = params.get('token');
+    const convite = params.get('convite') === '1';
+    const [passo, setPasso] = useState(token ? 3 : 1);
     const [email, setEmail] = useState('');
     const [senha, setSenha] = useState('');
     const [senha2, setSenha2] = useState('');
@@ -36,8 +40,13 @@ export function ForgotPasswordPage() {
     async function salvarSenha() {
         if (!regras.len || !regras.num || !regras.sym) return toast('A senha ainda não cumpre as três regras.');
         if (senha !== senha2) return toast('As senhas estão diferentes.');
-        await api.resetPassword('token-do-email', senha);
-        toast('Senha redefinida. Entre com a nova senha.');
+        if (!token && !MODO_MOCK) return toast('Abra o link que chegou no seu e-mail para criar a senha.');
+        try {
+            await api.resetPassword(token ?? '', senha);
+        } catch (e) {
+            return toast(e instanceof Error ? e.message : 'Não foi possível salvar a senha.');
+        }
+        toast(convite ? 'Senha criada. Entre com seu e-mail e a nova senha.' : 'Senha redefinida. Entre com a nova senha.');
         navigate('/entrar');
     }
 
@@ -90,16 +99,24 @@ export function ForgotPasswordPage() {
                             )}
                         </p>
                     </div>
-                    <Button bloco className="mt-[22px]" onClick={() => setPasso(3)}>
-                        Já recebi o link
-                    </Button>
+                    {MODO_MOCK ? (
+                        <Button bloco className="mt-[22px]" onClick={() => setPasso(3)}>
+                            Já recebi o link
+                        </Button>
+                    ) : (
+                        <p className="mt-[22px] text-center text-[13.4px] text-ink-2">Abra o link do e-mail para criar a senha nova.</p>
+                    )}
                 </div>
             )}
 
             {passo === 3 && (
                 <div>
-                    <h2 className="text-[26px] font-bold">Criar senha nova</h2>
-                    <p className="mt-2 text-[14.5px] text-ink-2">A senha anterior deixa de valer assim que você salvar.</p>
+                    <h2 className="text-[26px] font-bold">{convite ? 'Criar sua senha' : 'Criar senha nova'}</h2>
+                    <p className="mt-2 text-[14.5px] text-ink-2">
+                        {convite
+                            ? 'Você foi convidado para a conta da sua empresa no Energy Start. Defina a senha para entrar.'
+                            : 'A senha anterior deixa de valer assim que você salvar.'}
+                    </p>
 
                     <Field
                         label="Nova senha"
@@ -132,7 +149,7 @@ export function ForgotPasswordPage() {
                     </Field>
 
                     <Button bloco className="mt-5" onClick={salvarSenha}>
-                        Salvar nova senha
+                        {convite ? 'Criar senha e continuar' : 'Salvar nova senha'}
                     </Button>
                 </div>
             )}

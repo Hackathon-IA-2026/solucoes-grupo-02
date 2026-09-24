@@ -1,5 +1,6 @@
 import { BaseEntity } from '../../base.entity';
-import { Column, Entity } from 'typeorm';
+import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
+import { CompanieEntity } from '../../companie/entities/companie.entity';
 
 export interface PlantChannels {
     email: boolean;
@@ -9,6 +10,14 @@ export interface PlantChannels {
 
 @Entity({ name: 'configuracoes' })
 export class PlantEntity extends BaseEntity {
+    // Uma configuração de usina por empresa. Nulo só na linha antiga, até a migração da inicialização.
+    @Column({ name: 'company_id', type: 'uuid', nullable: true, unique: true })
+    companyId?: string;
+
+    @OneToOne(() => CompanieEntity, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'company_id' })
+    company?: CompanieEntity;
+
     @Column({ default: 'Minha usina' })
     name!: string;
 

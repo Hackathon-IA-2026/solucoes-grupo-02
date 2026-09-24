@@ -1,18 +1,19 @@
 # Enpoints disponíveis
 
+> **Cadastro por empresa.** Cada empresa tem seus usuários, sua configuração de usina (`/plants/me`) e seus alertas (`/alerts`); todas as rotas autenticadas enxergam só a empresa de quem está logado. Normas, trechos, limites e notícias são globais. O token JWT carrega só o `id`: empresa e permissão (`isAdmin`) são relidas do banco a cada requisição, então quem é removido ou rebaixado perde o acesso na hora.
+
 ## Autenticação e Perfil (/auth e /profile)
 
-- POST /auth/register - Cria o usuário.
+- POST /auth/register - Cadastra a **empresa** e o primeiro usuário, que vira admin dela: `name`, `email`, `password`, `role?` (cargo), `companyName`, `cnpj` (com ou sem máscara; os dígitos verificadores são conferidos). 409 se o CNPJ ou o e-mail já tiverem conta. Os demais usuários entram por convite (`POST /user`).
 - POST /auth/login - Retorna o JWT Token.
 - POST /auth/forgot-password - Gera um token de redefinição e manda por e-mail (não revela se o e-mail existe ou não).
-- POST /auth/reset-password - Troca a senha a partir do token recebido por e-mail.
-- GET /auth/me - Pega os dados do usuário logado (era `/profile` no plano original).
+- POST /auth/reset-password - Troca a senha a partir do token recebido por e-mail. Serve também para o link de convite (o convidado define a senha por aqui).
+- GET /auth/me - Pega os dados do usuário logado, com `isAdmin`, `company` (razão social) e `cnpj` da empresa dele.
 - PUT /auth/me - Altera os dados do usuário logado (era `/profile`).
-- GET /companie - Pega os dados da empresa (razão social/CNPJ vêm do `.env`, já embutidos na resposta de `/auth/me`)
 
 ## Configurações da usina (/plants) (cassano)
 
-> Implementado como `/plants/me` (não `/companie`) para bater com o que o front já chama em `web/src/api/http.ts`. É uma linha única por instância/banco — sem `#companie_id`, já que a empresa agora é fixa por deploy (via `.env`).
+> Uma configuração por empresa (criada no cadastro). `me` é a usina da empresa de quem está logado.
 
 - GET /plants/me - Pega os dados técnicos da usina (fonte, potência, submercado, CO2, disponibilidade, áreas/subáreas monitoradas, canais e frequência de notificação).
 - PUT /plants/me - Atualiza esses dados (o que recalibra o motor de alertas).
@@ -25,13 +26,15 @@
 - POST /trechos/search - Busca por similaridade (`vetor`, `limit?`). Sem a extensão pgvector no Postgres do docker-compose, a comparação é feita em memória (cosseno) — trocar por `vector <-> vector` se a extensão for habilitada.
 - DELETE /trechos/:id - Remove um trecho.
 
-## Usuários (/user)
+## Equipe da empresa (/user) — só admins
 
-- POST /user - Cria o usuário (`name`, `email`, `isActive` opcional). 409 se o e-mail já existir.
-- GET /user - Lista os usuários.
-- GET /user/:id - Busca um usuário pelo id (uuid).
-- PUT /user/:id - Atualiza o usuário. Todos os campos são opcionais.
-- DELETE /user/:id - Remove o usuário (soft delete). Retorna 204.
+Todas respondem 403 para quem não é admin e 404 para usuário de outra empresa. A resposta de um membro é `{ id, name, email, role, isAdmin, convitePendente, desde }`, nunca a entidade.
+
+- GET /user - Lista os membros da empresa.
+- POST /user - Convida alguém (`name`, `email`, `role?`, `isAdmin?`). Manda um e-mail com o link para criar a senha (vale 7 dias) e devolve `{ membro, linkConvite }` — o front mostra o link para copiar quando não há SMTP. 409 se o e-mail já tiver conta.
+- POST /user/:id/convite - Gera um link novo para quem ainda não aceitou (o anterior deixa de valer).
+- PATCH /user/:id - `{ isAdmin }`: promove ou rebaixa. 400 se for deixar a empresa sem admin.
+- DELETE /user/:id - Remove o usuário da empresa (definitivo). 400 se for a própria conta. Retorna 204.
 
 ## Normas / Feed de Resumos (/norms) (cassano)
 
@@ -121,7 +124,8 @@ Resposta: `{ "recebidas": 3, "criadas": 2, "duplicadas": 0, "rejeitadas": [{ "in
 
 # Tabelas da aplicação
 
-- user (id, nome, email, senha, token_reset_password, #companie_id)
+- empresas (id, razao_social, cnpj)
+- user (id, nome, email, senha, cargo, #company_id, is_admin, convite_pendente, token_reset_password)
 - normas (id, titulo, orgao, tipo, numero, data, area, subarea, link, fonte oficial, situacao, hash, texto completo, coletado em) (lomenha)
 - configuracoes (id, #companie_id, nome, fonte, modalidade, potencia(kW), data de protocolo, distribuidaora, tem armazenamento, participacao do maior titular%, nível de CO2) (cassano)
 - materias_dou (id da matérias, data, seção, tipo de ato, orgao, titulo, ementa, texto, decisao do filtro e motivo, subarea, norma relacionada ) (lomenha)

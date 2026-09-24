@@ -27,6 +27,6 @@ export class ChatController {
 
     @Post(':sessionId/message')
     async sendMessage(@Request() req: { user: UserPayload }, @Param('sessionId', ParseUUIDPipe) sessionId: string, @Body() dto: AskChatDto) {
-        return await this.chatService.ask(req.user.id, sessionId, dto.question);
+        return await this.chatService.ask(req.user.id, req.user.companyId, sessionId, dto.question);
     }
 }

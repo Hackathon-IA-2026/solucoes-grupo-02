@@ -62,19 +62,19 @@ export class CopilotService {
         private readonly config: ConfigService,
     ) {}
 
-    async ask(question: string): Promise<CopilotAnswer> {
-        return (await this.perguntarAoServicoDeIa(question)) ?? (await this.buscarPorPalavraChave(question));
+    async ask(question: string, companyId: string): Promise<CopilotAnswer> {
+        return (await this.perguntarAoServicoDeIa(question, companyId)) ?? (await this.buscarPorPalavraChave(question));
     }
 
     // Com AI_SERVICE_URL no .env, a pergunta vai pro microsserviço Python de RAG junto
     // com o perfil da usina (o "Envia perfil do cliente e dúvida" do diagrama).
     // Contrato: POST {AI_SERVICE_URL}/ask {question, perfil} -> {answer, citations}.
     // Se o serviço não estiver configurado ou falhar, cai na busca por palavra-chave.
-    private async perguntarAoServicoDeIa(question: string): Promise<CopilotAnswer | null> {
+    private async perguntarAoServicoDeIa(question: string, companyId: string): Promise<CopilotAnswer | null> {
         const base = this.config.get<string>('AI_SERVICE_URL');
         if (!base) return null;
         try {
-            const perfil = toPlantResponse(await this.plantService.getPlant());
+            const perfil = toPlantResponse(await this.plantService.getPlant(companyId));
             const res = await fetch(`${base.replace(/\/+$/, '')}/ask`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThanOrEqual, Repository } from 'typeorm';
 import { BaseService } from '../base.service';
@@ -43,28 +43,35 @@ export class AlertaService extends BaseService<AlertaEntity> {
         super(alertaRepository);
     }
 
-    async create(dto: CreateAlertaDto): Promise<AlertaEntity> {
-        return await this.persist(dto);
+    // Todo alerta pertence a uma empresa; as leituras abaixo nunca cruzam empresas.
+    async create(companyId: string, dto: CreateAlertaDto): Promise<AlertaEntity> {
+        return await this.persist({ ...dto, companyId });
     }
 
-    async list(): Promise<AlertaEntity[]> {
-        return await this.findAllInstances({ order: { createdAt: 'DESC' } });
+    async list(companyId: string): Promise<AlertaEntity[]> {
+        return await this.findAllInstances({ where: { companyId }, order: { createdAt: 'DESC' } });
     }
 
-    async listSince(desde: Date): Promise<AlertaEntity[]> {
-        return await this.findAllInstances({ where: { createdAt: MoreThanOrEqual(desde) }, order: { createdAt: 'DESC' } });
+    async listSince(companyId: string, desde: Date): Promise<AlertaEntity[]> {
+        return await this.findAllInstances({ where: { companyId, createdAt: MoreThanOrEqual(desde) }, order: { createdAt: 'DESC' } });
     }
 
-    async existsUnreadForLimite(limiteId: string): Promise<boolean> {
-        const count = await this.repository.count({ where: { limiteId, lido: false } });
-        return count > 0;
+    async existsUnreadForLimite(companyId: string, limiteId: string): Promise<boolean> {
+        return await this.repository.existsBy({ companyId, limiteId, lido: false });
     }
 
-    async markAsRead(id: string): Promise<AlertaEntity> {
-        return await this.updateInstance(id, { lido: true });
+    async markAsRead(companyId: string, id: string): Promise<AlertaEntity> {
+        const alerta = await this.findInCompanyOrFail(companyId, id);
+        return await this.updateInstance(alerta.id, { lido: true });
     }
 
-    async remove(id: string): Promise<void> {
-        await this.deleteInstanceById(id);
+    async remove(companyId: string, id: string): Promise<void> {
+        await this.repository.remove(await this.findInCompanyOrFail(companyId, id));
+    }
+
+    private async findInCompanyOrFail(companyId: string, id: string): Promise<AlertaEntity> {
+        const alerta = await this.repository.findOneBy({ id, companyId });
+        if (!alerta) throw new NotFoundException('Alerta não encontrado.');
+        return alerta;
     }
 }

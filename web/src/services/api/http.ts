@@ -71,4 +71,23 @@ export const api: Api = {
         const { data } = await client.post(`/chat/${sessionId}/message`, { question });
         return data;
     },
+    listTeam: async () => {
+        const { data } = await client.get('/user');
+        return data;
+    },
+    inviteMember: async (input) => {
+        const { data } = await client.post('/user', input);
+        return data;
+    },
+    renewInvite: async (id) => {
+        const { data } = await client.post(`/user/${id}/convite`);
+        return data;
+    },
+    setMemberAdmin: async (id, isAdmin) => {
+        const { data } = await client.patch(`/user/${id}`, { isAdmin });
+        return data;
+    },
+    removeMember: async (id) => {
+        await client.delete(`/user/${id}`);
+    },
 };

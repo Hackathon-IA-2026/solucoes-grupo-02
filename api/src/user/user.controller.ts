@@ -1,28 +1,39 @@
-import { Controller, Get, Post, Body, Put, Param, Delete, HttpCode, HttpStatus, ParseUUIDPipe } from '@nestjs/common';
-import { UserService } from './user.service';
-import { IsPublic } from '@/auth/decorators/is-public.decorator';
-import { CreateUserDto } from './dto/create-user.dto';
-import { AuthService } from '@/auth/auth.service';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, Request, UseGuards } from '@nestjs/common';
+import { AdminGuard } from '../auth/guards/admin.guard';
+import { UserPayload } from '../auth/types/user.payload.type';
+import { EquipeService } from './equipe.service';
+import { InviteUserDto } from './dto/invite-user.dto';
+import { UpdateMemberDto } from './dto/update-member.dto';
 
+// Equipe da empresa — só admins. Os dados do próprio usuário ficam em /auth/me.
+@UseGuards(AdminGuard)
 @Controller('user')
 export class UserController {
-    constructor(private readonly userService: UserService) {}
+    constructor(private readonly equipeService: EquipeService) {}
 
-    @IsPublic()
-    @Get('all')
-    async getAllUsers() {
-        return this.userService.getAllUsers();
+    @Get()
+    async listar(@Request() req: { user: UserPayload }) {
+        return await this.equipeService.listar(req.user);
     }
 
-    @IsPublic()
-    @Get(':id')
-    async getUserById(@Param('id') id: string) {
-        return this.userService.findUserById(id);
+    @Post()
+    async convidar(@Request() req: { user: UserPayload }, @Body() dto: InviteUserDto) {
+        return await this.equipeService.convidar(req.user, dto);
     }
 
-    @HttpCode(HttpStatus.OK)
-    @Delete('delete/:id')
-    async deleteUser(@Param('id') id: string) {
-        return this.userService.deleteUserById(id);
+    @Post(':id/convite')
+    async renovarConvite(@Request() req: { user: UserPayload }, @Param('id', ParseUUIDPipe) id: string) {
+        return await this.equipeService.renovarConvite(req.user, id);
+    }
+
+    @Patch(':id')
+    async alterar(@Request() req: { user: UserPayload }, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateMemberDto) {
+        return await this.equipeService.alterarAdmin(req.user, id, dto.isAdmin);
+    }
+
+    @Delete(':id')
+    @HttpCode(HttpStatus.NO_CONTENT)
+    async remover(@Request() req: { user: UserPayload }, @Param('id', ParseUUIDPipe) id: string) {
+        await this.equipeService.remover(req.user, id);
     }
 }

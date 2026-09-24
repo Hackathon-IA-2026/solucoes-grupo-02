@@ -4,6 +4,7 @@ import { useAuth } from './hooks/useAuth';
 import { AlertsPage } from './pages/AlertsPage';
 import { CopilotPage } from './pages/CopilotPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { EquipePage } from './pages/EquipePage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { LoginPage } from './pages/LoginPage';
 import { NoticiasPage } from './pages/NoticiasPage';
@@ -35,6 +36,7 @@ export function App() {
                 <Route path="/noticias" element={<NoticiasPage />} />
                 <Route path="/copiloto" element={<CopilotPage />} />
                 <Route path="/perfil" element={<ProfilePage />} />
+                <Route path="/equipe" element={<EquipePage />} />
             </Route>
             <Route path="*" element={<Navigate to="/painel" replace />} />
         </Routes>

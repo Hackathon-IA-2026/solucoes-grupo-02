@@ -57,37 +57,42 @@ export class AlertEngineService {
         private readonly config: ConfigService,
     ) {}
 
-    // Recruza lei x perfil (o front chama depois de salvar a usina).
-    async run(): Promise<AlertaEntity[]> {
-        const plant = await this.plantService.getPlant();
+    // Recruza lei x perfil de uma empresa (o front chama depois de salvar a usina).
+    async run(companyId: string): Promise<AlertaEntity[]> {
+        const plant = await this.plantService.getPlant(companyId);
         const criados = await this.checarLimites(plant);
         await this.notificarAgora(plant, criados);
         return criados;
     }
 
-    // Chamado pela ingestão: avisa das normas novas nas áreas monitoradas e recruza
-    // os limites, que podem ter chegado junto com elas. Um único e-mail pros dois.
+    // Chamado pela ingestão: pra cada empresa, avisa das normas novas nas áreas que
+    // ela monitora e recruza os limites, que podem ter chegado junto. Um e-mail por empresa.
     async aposIngestao(normasNovas: NormaEntity[]): Promise<AlertaEntity[]> {
-        const plant = await this.plantService.getPlant();
-        const criados = [...(await this.alertarNormasNovas(plant, normasNovas)), ...(await this.checarLimites(plant))];
-        await this.notificarAgora(plant, criados);
+        const criados: AlertaEntity[] = [];
+        for (const plant of await this.plantService.listAll()) {
+            const daEmpresa = [...(await this.alertarNormasNovas(plant, normasNovas)), ...(await this.checarLimites(plant))];
+            await this.notificarAgora(plant, daEmpresa);
+            criados.push(...daEmpresa);
+        }
         return criados;
     }
 
-    // Disparado pelo cron (AlertDigestService) para quem escolheu resumo em vez de aviso imediato.
+    // Disparado pelo cron (AlertDigestService) para as empresas que escolheram resumo em vez de aviso imediato.
     async enviarResumo(frequencia: FrequenciaResumo, desde: Date): Promise<void> {
-        const plant = await this.plantService.getPlant();
-        if (plant.frequency !== frequencia || !plant.channels?.email) return;
+        for (const plant of await this.plantService.listAll()) {
+            if (plant.frequency !== frequencia || !plant.channels?.email) continue;
 
-        const alertas = await this.alertaService.listSince(desde);
-        if (alertas.length === 0) return;
+            const alertas = await this.alertaService.listSince(plant.companyId!, desde);
+            if (alertas.length === 0) continue;
 
-        const periodo = frequencia === 'Resumo diário' ? 'nas últimas 24 horas' : 'nos últimos 7 dias';
-        await this.enviarEmail(
-            alertas,
-            `${frequencia}: ${alertas.length} alerta(s) regulatório(s) — Energy Start`,
-            `${alertas.length} alerta(s) ${periodo}:`,
-        );
+            const periodo = frequencia === 'Resumo diário' ? 'nas últimas 24 horas' : 'nos últimos 7 dias';
+            await this.enviarEmail(
+                plant.companyId!,
+                alertas,
+                `${frequencia}: ${alertas.length} alerta(s) regulatório(s) — Energy Start`,
+                `${alertas.length} alerta(s) ${periodo}:`,
+            );
+        }
     }
 
     private async checarLimites(plant: PlantEntity): Promise<AlertaEntity[]> {
@@ -107,13 +112,13 @@ export class AlertEngineService {
         if (typeof valorDaUsina !== 'number') return null;
         if (cumpre(valorDaUsina, limite.operador, limite.valor)) return null;
 
-        const jaTemAlertaAberto = await this.alertaService.existsUnreadForLimite(limite.id);
+        const jaTemAlertaAberto = await this.alertaService.existsUnreadForLimite(plant.companyId!, limite.id);
         if (jaTemAlertaAberto) return null;
 
         const distanciaPct = limite.valor !== 0 ? Math.abs(((valorDaUsina - limite.valor) / limite.valor) * 100) : undefined;
         const unidade = limite.unidade ? ` ${limite.unidade}` : '';
 
-        return await this.alertaService.create({
+        return await this.alertaService.create(plant.companyId!, {
             limiteId: limite.id,
             normaId: limite.normaId,
             tipo: 'limite_excedido',
@@ -134,7 +139,7 @@ export class AlertEngineService {
 
             const titulo = norma.code && norma.code !== norma.title ? `${norma.code} — ${norma.title}` : norma.title;
             criados.push(
-                await this.alertaService.create({
+                await this.alertaService.create(plant.companyId!, {
                     normaId: norma.id,
                     tipo: 'norma_nova',
                     severidade: norma.impact,
@@ -153,14 +158,16 @@ export class AlertEngineService {
 
         const n = alertas.length;
         await this.enviarEmail(
+            plant.companyId!,
             alertas,
             `${n} novo(s) alerta(s) regulatório(s) — Energy Start`,
             `${n} novo${n > 1 ? 's' : ''} alerta${n > 1 ? 's' : ''} na Central de Alertas:`,
         );
     }
 
-    private async enviarEmail(alertas: AlertaEntity[], assunto: string, introducao: string): Promise<void> {
-        const usuarios = await this.userService.getAllUsers();
+    // Vai pros membros da empresa dona dos alertas (quem ainda não aceitou o convite fica de fora).
+    private async enviarEmail(companyId: string, alertas: AlertaEntity[], assunto: string, introducao: string): Promise<void> {
+        const usuarios = await this.userService.listActiveByCompany(companyId);
         const webUrl = this.config.get<string>('WEB_URL', 'http://localhost:5173');
         const corpo = `<p>${escapeHtml(introducao)}</p><ul>${alertas
             .map((a) => `<li><b>${escapeHtml(a.titulo)}</b> — ${escapeHtml(a.mensagem)}</li>`)

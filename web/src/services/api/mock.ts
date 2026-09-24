@@ -1,4 +1,4 @@
-import type { Api, Alert, ChatMessage, ChatSession, CopilotAnswer, Norm, Noticia, Plant, RegisterInput, Session, Source, User } from '../../types';
+import type { Api, Alert, ChatMessage, ChatSession, CopilotAnswer, Norm, Noticia, Plant, RegisterInput, Session, Source, TeamMember, User } from '../../types';
 
 const espera = (ms = 320) => new Promise((r) => setTimeout(r, ms));
 
@@ -12,7 +12,16 @@ let usuario: User = {
     phone: '(81) 99632-4410',
     monthlyReportEnabled: false,
     initials: 'MC',
+    isAdmin: true,
 };
+
+let equipe: TeamMember[] = [
+    { id: 'u1', name: 'Mariana Coelho', email: 'regulatorio@usinaserradovento.com.br', role: 'Coordenadora regulatória', isAdmin: true, convitePendente: false, desde: '2026-08-02T12:00:00Z' },
+    { id: 'u2', name: 'Rafael Tavares', email: 'rafael@usinaserradovento.com.br', role: 'Engenheiro de operação', isAdmin: false, convitePendente: false, desde: '2026-08-10T12:00:00Z' },
+    { id: 'u3', name: 'Lívia Prado', email: 'livia@usinaserradovento.com.br', role: 'Jurídico', isAdmin: false, convitePendente: true, desde: '2026-09-20T12:00:00Z' },
+];
+
+const linkDeConvite = () => `${window.location.origin}/recuperar-senha?token=mock-${Date.now()}&convite=1`;
 
 let usina: Plant = {
     id: 'p1',
@@ -289,6 +298,9 @@ export const api: Api = {
                 name: input.name,
                 email: input.email,
                 role: input.role,
+                company: input.companyName,
+                cnpj: input.cnpj,
+                isAdmin: true,
                 initials,
             },
         };
@@ -381,5 +393,35 @@ export const api: Api = {
         }
 
         return resposta;
+    },
+    async listTeam() {
+        await espera(200);
+        return equipe;
+    },
+    async inviteMember(input) {
+        await espera(400);
+        if (equipe.some((m) => m.email === input.email)) throw new Error('Já existe uma conta com esse e-mail.');
+        const membro: TeamMember = { id: `u${Date.now()}`, name: input.name, email: input.email, role: input.role ?? '', isAdmin: input.isAdmin ?? false, convitePendente: true, desde: new Date().toISOString() };
+        equipe = [...equipe, membro];
+        return { membro, linkConvite: linkDeConvite() };
+    },
+    async renewInvite(id: string) {
+        await espera(300);
+        const membro = equipe.find((m) => m.id === id);
+        if (!membro) throw new Error('Usuário não encontrado nesta empresa.');
+        return { membro, linkConvite: linkDeConvite() };
+    },
+    async setMemberAdmin(id: string, isAdmin: boolean) {
+        await espera(250);
+        if (!isAdmin && equipe.filter((m) => m.isAdmin).length <= 1 && equipe.find((m) => m.id === id)?.isAdmin) {
+            throw new Error('A empresa precisa de pelo menos um administrador.');
+        }
+        equipe = equipe.map((m) => (m.id === id ? { ...m, isAdmin } : m));
+        return equipe.find((m) => m.id === id)!;
+    },
+    async removeMember(id: string) {
+        await espera(250);
+        if (id === usuario.id) throw new Error('Você não pode remover a própria conta.');
+        equipe = equipe.filter((m) => m.id !== id);
     },
 };

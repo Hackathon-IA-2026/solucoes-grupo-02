@@ -93,6 +93,29 @@ export interface User {
     phone: string;
     monthlyReportEnabled: boolean;
     initials: string;
+    isAdmin: boolean; // admin da empresa: convida e remove usuários
+}
+
+export interface TeamMember {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    isAdmin: boolean;
+    convitePendente: boolean;
+    desde: string;
+}
+
+export interface InviteInput {
+    name: string;
+    email: string;
+    role?: string;
+    isAdmin?: boolean;
+}
+
+export interface InviteResult {
+    membro: TeamMember;
+    linkConvite: string; // também vai por e-mail; a tela mostra pra copiar
 }
 
 export interface Session {
@@ -120,6 +143,11 @@ export interface Api {
     createChatSession(): Promise<ChatSession>;
     listChatMessages(sessionId: string): Promise<ChatMessage[]>;
     sendChatMessage(sessionId: string, question: string): Promise<CopilotAnswer>;
+    listTeam(): Promise<TeamMember[]>;
+    inviteMember(input: InviteInput): Promise<InviteResult>;
+    renewInvite(id: string): Promise<InviteResult>;
+    setMemberAdmin(id: string, isAdmin: boolean): Promise<TeamMember>;
+    removeMember(id: string): Promise<void>;
 }
 
 export interface RegisterInput {
@@ -127,4 +155,6 @@ export interface RegisterInput {
     email: string;
     password: string;
     role: string;
+    companyName: string;
+    cnpj: string;
 }
