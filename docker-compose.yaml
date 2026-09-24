@@ -30,6 +30,16 @@ services:
             db:
                 condition: service_healthy
 
+    ai:
+        build: ./ai
+        env_file: ./.env
+        environment:
+            API_URL: "http://api:3000"
+        volumes:
+            - shared_storage:/app/storage
+        depends_on:
+            - api
+
     web:
         build: ./web
         env_file:
@@ -40,3 +50,4 @@ services:
 
 volumes:
     pgdata:
+    shared_storage:
