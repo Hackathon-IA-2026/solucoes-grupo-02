@@ -22,6 +22,7 @@ export class UserService extends BaseService<UserEntity> {
         let user = new UserEntity();
         user.name = req.name;
         user.email = req.email;
+        user.role = req.role;
         if (req.phoneNumber) {
             user.phoneNumber = req.phoneNumber;
         }
@@ -44,6 +45,19 @@ export class UserService extends BaseService<UserEntity> {
         }
         const { hashPassword, ...userWithoutPassword } = user;
 
+        return userWithoutPassword;
+    }
+
+    async updateProfile(
+        id: string,
+        patch: { name?: string; role?: string; phone?: string; monthlyReportEnabled?: boolean },
+    ): Promise<Omit<UserEntity, 'hashPassword'>> {
+        const { phone, ...rest } = patch;
+        const updated = await this.updateInstance(id, {
+            ...rest,
+            ...(phone !== undefined ? { phoneNumber: phone } : {}),
+        });
+        const { hashPassword, ...userWithoutPassword } = updated;
         return userWithoutPassword;
     }
 

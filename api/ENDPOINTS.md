@@ -6,8 +6,22 @@
 - POST /auth/login - Retorna o JWT Token.
 - GET /profile - Pega os dados do usuário
 - PUT /profile - Altera os dados do usuário
-- GET /companie - Pega os dados da empresa
-- PUT /companie - Atualiza os dados técnicos (setor, capacidade, CO2) para recalibrar a IA.
+- GET /companie - Pega os dados da empresa (razão social/CNPJ vêm do `.env`, já embutidos na resposta de `/auth/me`)
+
+## Configurações da usina (/plants) (cassano)
+
+> Implementado como `/plants/me` (não `/companie`) para bater com o que o front já chama em `web/src/api/http.ts`. É uma linha única por instância/banco — sem `#companie_id`, já que a empresa agora é fixa por deploy (via `.env`).
+
+- GET /plants/me - Pega os dados técnicos da usina (fonte, potência, submercado, CO2, disponibilidade, áreas/subáreas monitoradas, canais e frequência de notificação).
+- PUT /plants/me - Atualiza esses dados (o que recalibra o motor de alertas).
+
+## Trechos para RAG (/trechos) (cassano)
+
+- POST /trechos - Cria um trecho (`normaId`, `artigo?`, `ordem?`, `texto`, `vetor?`). Usado pelo pipeline de extração pra popular a base vetorial.
+- GET /trechos?normaId=uuid - Lista os trechos de uma norma, em ordem.
+- GET /trechos/:id - Busca um trecho pelo id.
+- POST /trechos/search - Busca por similaridade (`vetor`, `limit?`). Sem a extensão pgvector no Postgres do docker-compose, a comparação é feita em memória (cosseno) — trocar por `vector <-> vector` se a extensão for habilitada.
+- DELETE /trechos/:id - Remove um trecho.
 
 ## Usuários (/user)
 

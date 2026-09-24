@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api, MODO_MOCK } from '../api';
-import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
+import { api, MODO_MOCK } from '../services/api';
+import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../hooks/useToast';
 import { Button, Field } from '../components/ui';
 import { AuthLayout } from './AuthLayout';
+import { login } from '../services/auth/auth.services';
 
 export function LoginPage() {
     const [email, setEmail] = useState('');
@@ -17,8 +18,8 @@ export function LoginPage() {
     async function submeter() {
         setEnviando(true);
         try {
-            const sessao = await api.login(email, senha);
-            console.log('sessao', sessao);
+            const sessao = await login(email, senha);
+
             entrar(sessao);
             toast(`Bem-vinda, ${sessao.user.name.split(' ')[0]}.`);
             navigate('/painel');

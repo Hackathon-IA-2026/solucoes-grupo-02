@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../api';
+import { api } from '../services/api';
 import { TELA } from '../components/AppShell';
 import { Button, CAMPO, Chip, PageHead, Panel, PanelTitle, ROTULO, SwitchRow, cx, fmt } from '../components/ui';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../hooks/useToast';
 import type { Plant } from '../types';
 
 const AREAS = ['Eólica', 'Solar', 'Hidrelétrica', 'Biomassa', 'Térmica', 'Transmissão', 'Armazenamento'];

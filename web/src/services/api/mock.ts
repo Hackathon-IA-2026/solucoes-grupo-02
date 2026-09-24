@@ -1,8 +1,8 @@
-import type { Api, Alert, CopilotAnswer, Norm, Plant, RegisterInput, Session, Source, User } from '../types';
+import type { Api, Alert, CopilotAnswer, Norm, Plant, RegisterInput, Session, Source, User } from '../../types';
 
 const espera = (ms = 320) => new Promise((r) => setTimeout(r, ms));
 
-const usuario: User = {
+let usuario: User = {
     id: 'u1',
     name: 'Mariana Coelho',
     email: 'regulatorio@usinaserradovento.com.br',
@@ -10,6 +10,7 @@ const usuario: User = {
     company: 'Serra do Vento Energia S.A.',
     cnpj: '12.345.678/0001-90',
     phone: '(81) 99632-4410',
+    monthlyReportEnabled: false,
     initials: 'MC',
 };
 
@@ -238,6 +239,15 @@ export const api: Api = {
     },
     async resetPassword() {
         await espera(400);
+    },
+    async getMe() {
+        await espera(150);
+        return usuario;
+    },
+    async updateProfile(patch) {
+        await espera(260);
+        usuario = { ...usuario, ...patch };
+        return usuario;
     },
     async listNorms(source) {
         await espera(200);

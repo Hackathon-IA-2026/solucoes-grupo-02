@@ -30,7 +30,8 @@ export class AuthService {
             name: user.name,
             email: user.email,
             role: user.role ?? '',
-            phone: '',
+            phone: user.phoneNumber ?? '',
+            monthlyReportEnabled: user.monthlyReportEnabled,
             initials: initialsOf(user.name),
             ...this.companieService.getCompanie(),
         };

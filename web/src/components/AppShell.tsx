@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { api, MODO_MOCK } from '../api';
-import { useAuth } from '../context/AuthContext';
+import { api, MODO_MOCK } from '../services/api';
+import { useAuth } from '../hooks/useAuth';
 import { Brandmark } from './Brandmark';
 
 const ITENS = [

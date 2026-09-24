@@ -1,4 +1,4 @@
-import api from '../../api/api';
+import api from '../api/api';
 import type { RegisterInput, Session } from '../../types';
 
 interface AuthResponse {
@@ -22,6 +22,6 @@ export async function login(email: string, password: string): Promise<Session> {
 }
 
 export async function register(user: RegisterInput): Promise<Session> {
-    const { data } = await api.post<AuthResponse>('/user', user);
+    const { data } = await api.post<AuthResponse>('/auth/register', user);
     return toSession(data);
 }

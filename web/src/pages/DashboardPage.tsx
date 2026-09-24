@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { api, MODO_MOCK } from '../api';
+import { api, MODO_MOCK } from '../services/api';
 import { TELA } from '../components/AppShell';
 import { Button, ImpactBadge, LimitBar, Panel, PanelTitle, SrcBadge, TagImpacto, cx, fmt } from '../components/ui';
 import type { Source } from '../types';

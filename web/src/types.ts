@@ -61,6 +61,7 @@ export interface User {
     company: string;
     cnpj: string;
     phone: string;
+    monthlyReportEnabled: boolean;
     initials: string;
 }
 
@@ -74,6 +75,8 @@ export interface Api {
     register(input: RegisterInput): Promise<Session>;
     forgotPassword(email: string): Promise<void>;
     resetPassword(token: string, password: string): Promise<void>;
+    getMe(): Promise<User>;
+    updateProfile(patch: Partial<Pick<User, 'name' | 'role' | 'phone' | 'monthlyReportEnabled'>>): Promise<User>;
     listNorms(source?: Source | 'todas'): Promise<Norm[]>;
     getNorm(id: string): Promise<Norm>;
     getPlant(): Promise<Plant>;

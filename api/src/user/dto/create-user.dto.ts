@@ -24,7 +24,12 @@ export class CreateUserDto {
     @IsString()
     @IsOptional()
     @MaxLength(20)
+    @IsString()
     phoneNumber?: string;
+
+    @Transform(({ value }: { value: string }) => (typeof value === 'string' ? value.trim() : value))
+    @IsString()
+    @IsOptional()
     @MaxLength(255)
     role?: string;
 }
