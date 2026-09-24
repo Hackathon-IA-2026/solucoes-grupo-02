@@ -105,7 +105,8 @@ def store_and_notify_api(
 
 
 if __name__ == "__main__":
-    TEMP_FILE_PATH = "./current_processing_data.csv"
+    date = datetime.now().strftime("%Y-%m-%d")
+    TEMP_FILE_PATH = f"./data/out/law_day_final_{date}.csv"
     API_ENDPOINT = "http://api:3000/api/process-csv"
 
     success = store_and_notify_api(
