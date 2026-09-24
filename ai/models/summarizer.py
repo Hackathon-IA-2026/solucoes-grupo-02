@@ -10,19 +10,19 @@
 
 import difflib
 import json
-import os
 import re
 import time
 import unicodedata
+import os
 
 import pandas as pd
 import requests
-from google.colab import userdata
 
 URL = "https://integrate.api.nvidia.com/v1/chat/completions"
-MODELO_RESUMO = "nvidia/nemotron-3-super-120b-a12b"   # aqui vale o modelo mais forte
+MODELO = "google/gemma-4-31b-it"
+CHAVE = "Bearer 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"
 
-SIMILARIDADE_MINIMA = 0.90   # tolerância da conferência de citação
+SIMILARIDADE_MINIMA = 0.90  # tolerância da conferência de citação
 
 # ------------------------------------------------------------
 # 1. Prompt
@@ -61,23 +61,32 @@ FORMATO DA RESPOSTA: apenas um objeto JSON, sem texto antes ou depois, sem ```:
   "acao_necessaria": "o que o usuário precisa fazer, ou null se não houver"
 }"""
 
+
 # ------------------------------------------------------------
 # 2. Chamada ao modelo
 # ------------------------------------------------------------
 def _ler_json(resposta):
     limpo = re.sub(r"```(?:json)?", "", resposta)
-    return json.loads(limpo[limpo.find("{"): limpo.rfind("}") + 1])
+    return json.loads(limpo[limpo.find("{") : limpo.rfind("}") + 1])
 
 
 def chamar_nvidia(mensagens, modelo, max_tokens=2048):
-    headers = {f"Authorization": {os.envirom.COMPLEX_MODEL_KEY}, "Accept": "application/json"}
-    payload = {"model": modelo, "messages": mensagens, "temperature": 0,
-               "max_tokens": max_tokens, "stream": False}
+    headers = {"Authorization": f"{CHAVE}", "Accept": "application/json"}
+    payload = {
+        "model": modelo,
+        "messages": mensagens,
+        "temperature": 0,
+        "max_tokens": max_tokens,
+        "stream": False,
+    }
     r = requests.post(URL, headers=headers, json=payload, timeout=180)
     if r.status_code in (401, 403):
-        raise RuntimeError("Chave inválida ou sem permissão. Confira o Secret NVIDIA_KEY.")
+        raise RuntimeError(
+            "Chave inválida ou sem permissão. Confira o Secret NVIDIA_KEY."
+        )
     r.raise_for_status()
     return r.json()["choices"][0]["message"]["content"] or ""
+
 
 # ------------------------------------------------------------
 # 3. Conferência de citação (sem IA)
@@ -99,7 +108,7 @@ def trecho_confere(trecho, texto_norma, texto_norm=None):
     n = len(alvo)
     melhor = difflib.SequenceMatcher(None, alvo, "")
     for i in range(0, max(len(base) - n, 0) + 1, max(n // 4, 1)):
-        janela = base[i:i + n]
+        janela = base[i : i + n]
         if difflib.SequenceMatcher(None, alvo, janela).ratio() >= SIMILARIDADE_MINIMA:
             return True
     return False
@@ -119,10 +128,11 @@ def conferir(dados, texto_norma):
     aprovados["itens_descartados"] = descartados
     return aprovados
 
+
 # ------------------------------------------------------------
 # 4. Coletar uma norma
 # ------------------------------------------------------------
-def coletar_texto(texto, modelo=MODELO_RESUMO, max_chars=60000):
+def coletar_texto(texto, modelo=MODELO, max_chars=60000):
     mensagens = [
         {"role": "system", "content": PROMPT_COLETOR},
         {"role": "user", "content": "NORMA:\n\n" + texto[:max_chars]},
@@ -139,14 +149,22 @@ def coletar_texto(texto, modelo=MODELO_RESUMO, max_chars=60000):
         }
         r.update(conferir(dados, texto))
         return r
-    return {"resumo": "ERRO: resposta inválida", "mudancas": [], "valores": [], "prazos": [],
-            "quem_e_afetado": [], "acao_necessaria": None,
-            "itens_gerados": 0, "itens_descartados": 0}
+    return {
+        "resumo": "ERRO: resposta inválida",
+        "mudancas": [],
+        "valores": [],
+        "prazos": [],
+        "quem_e_afetado": [],
+        "acao_necessaria": None,
+        "itens_gerados": 0,
+        "itens_descartados": 0,
+    }
+
 
 # ------------------------------------------------------------
 # 5. Coletar o DataFrame (só o que o classificador marcou)
 # ------------------------------------------------------------
-def coletar_df(df, coluna_texto="texto", relevancia_minima=2, pausa=7):
+def coletar_df(df, coluna_texto="texto", relevancia_minima=1, pausa=7):
     alvo = df[df["relevancia"] >= relevancia_minima] if "relevancia" in df else df
     print(f"{len(alvo)} de {len(df)} normas vão para o coletor\n")
 
@@ -162,12 +180,21 @@ def coletar_df(df, coluna_texto="texto", relevancia_minima=2, pausa=7):
                 print(f"  erro na tentativa {tentativa + 1}: {e} — esperando 30s")
                 time.sleep(30)
         else:
-            r = {"resumo": "ERRO: limite ou falha da API", "mudancas": [], "valores": [],
-                 "prazos": [], "quem_e_afetado": [], "acao_necessaria": None,
-                 "itens_gerados": 0, "itens_descartados": 0}
+            r = {
+                "resumo": "ERRO: limite ou falha da API",
+                "mudancas": [],
+                "valores": [],
+                "prazos": [],
+                "quem_e_afetado": [],
+                "acao_necessaria": None,
+                "itens_gerados": 0,
+                "itens_descartados": 0,
+            }
         print(f"[{i}/{len(alvo)}] {str(linha.get('titulo', ''))[:60]}")
-        print(f"      {len(r['mudancas'])} mudanças | {len(r['valores'])} valores | "
-              f"{len(r['prazos'])} prazos | {r['itens_descartados']} descartados na conferência")
+        print(
+            f"      {len(r['mudancas'])} mudanças | {len(r['valores'])} valores | "
+            f"{len(r['prazos'])} prazos | {r['itens_descartados']} descartados na conferência"
+        )
         resultados.append(r)
         time.sleep(pausa)
 
@@ -175,15 +202,17 @@ def coletar_df(df, coluna_texto="texto", relevancia_minima=2, pausa=7):
     gerados = saida["itens_gerados"].sum()
     if gerados:
         aprovados = gerados - saida["itens_descartados"].sum()
-        print(f"\nConferência de citação: {aprovados}/{gerados} afirmações comprovadas "
-              f"({100 * aprovados / gerados:.0f}%)")
+        print(
+            f"\nConferência de citação: {aprovados}/{gerados} afirmações comprovadas "
+            f"({100 * aprovados / gerados:.0f}%)"
+        )
     return saida
+
 
 # ------------------------------------------------------------
 # Uso:
 #   df_class = classificar_df(df_normas)
 #   df_final = coletar_df(df_class)
 #   df_final[["titulo", "resumo", "mudancas", "prazos", "acao_necessaria"]]
-# ------------------------------------------------------------
 
-# Output
+# ------------------------------------------------------------
