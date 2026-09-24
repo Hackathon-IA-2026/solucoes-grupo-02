@@ -1,0 +1,10 @@
+# Usado pela imagem de deploy (infra/docker/app.Dockerfile), cujo contexto é a raiz do repo.
+.git
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+**/.env
+**/.env.*
+!**/.env.example
+infra/cdk.out
+ai

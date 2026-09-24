@@ -7,7 +7,7 @@ import { AuthLayout } from './AuthLayout';
 
 export function ForgotPasswordPage() {
     const [passo, setPasso] = useState(1);
-    const [email, setEmail] = useState();
+    const [email, setEmail] = useState('');
     const [senha, setSenha] = useState('');
     const [senha2, setSenha2] = useState('');
     const [falta, setFalta] = useState(0);

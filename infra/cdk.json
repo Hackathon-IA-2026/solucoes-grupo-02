@@ -1,0 +1,9 @@
+{
+    "app": "npx tsx bin/app.ts",
+    "context": {
+        "//": "Preencher na sexta com os valores reais da conta do hackathon (ver README.md, passo 2).",
+        "vpcId": "vpc-PREENCHER",
+        "publicSubnetIds": ["subnet-PREENCHER-A", "subnet-PREENCHER-B"],
+        "availabilityZones": ["us-east-1a", "us-east-1b"]
+    }
+}
