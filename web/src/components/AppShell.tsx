@@ -8,6 +8,7 @@ const ITENS = [
   { to: '/painel', rotulo: 'Painel', icone: <><path d="M3 12l9-8 9 8" /><path d="M5 10v10h14V10" /></> },
   { to: '/alertas', rotulo: 'Alertas', icone: <><path d="M18 9a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7" /><path d="M10.5 20a2 2 0 0 0 3 0" /></> },
   { to: '/resumos', rotulo: 'Resumos', icone: <><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /><path d="M9 13h6M9 17h4" /></> },
+  { to: '/noticias', rotulo: 'Notícias', icone: <><rect x="3" y="4" width="14" height="16" rx="1" /><path d="M17 8h3v11a1 1 0 0 1-1 1h-2" /><path d="M7 8h6M7 11h6M7 14h4" /></> },
   { to: '/copiloto', rotulo: 'Copiloto', icone: <><rect x="4" y="7" width="16" height="12" rx="3" /><path d="M12 7V4" /><path d="M9 12h.01M15 12h.01M9.5 16h5" /></> },
   { to: '/perfil', rotulo: 'Perfil', icone: <><circle cx="12" cy="8.5" r="3.5" /><path d="M5 20c0-3.6 3.1-5.5 7-5.5s7 1.9 7 5.5" /></> },
 ];

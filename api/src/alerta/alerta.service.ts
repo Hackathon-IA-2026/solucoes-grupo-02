@@ -49,6 +49,11 @@ export class AlertaService extends BaseService<AlertaEntity> {
         return await this.findAllInstances({ order: { createdAt: 'DESC' } });
     }
 
+    async existsUnreadForLimite(limiteId: string): Promise<boolean> {
+        const count = await this.repository.count({ where: { limiteId, lido: false } });
+        return count > 0;
+    }
+
     async markAsRead(id: string): Promise<AlertaEntity> {
         return await this.updateInstance(id, { lido: true });
     }

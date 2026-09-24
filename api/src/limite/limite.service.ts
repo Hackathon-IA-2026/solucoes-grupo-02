@@ -23,6 +23,10 @@ export class LimiteService extends BaseService<LimiteEntity> {
         return await this.findAllInstances({ where: { normaId } });
     }
 
+    async listAll(): Promise<LimiteEntity[]> {
+        return await this.findAllInstances();
+    }
+
     async getById(id: string): Promise<LimiteEntity> {
         return await this.findInstanceByIdOrFail(id);
     }

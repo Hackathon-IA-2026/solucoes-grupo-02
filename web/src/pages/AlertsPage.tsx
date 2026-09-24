@@ -26,11 +26,19 @@ export function AlertsPage() {
   }, [data, form]);
 
   const salvar = useMutation({
-    mutationFn: (p: Partial<Plant>) => api.updatePlant(p),
-    onSuccess: (p) => {
-      qc.setQueryData(['plant'], p);
+    mutationFn: async (p: Partial<Plant>) => {
+      const usinaAtualizada = await api.updatePlant(p);
+      const novosAlertas = await api.checkAlerts(); // recruza a lei x o perfil que acabou de mudar
+      return { usinaAtualizada, novosAlertas };
+    },
+    onSuccess: ({ usinaAtualizada, novosAlertas }) => {
+      qc.setQueryData(['plant'], usinaAtualizada);
       qc.invalidateQueries({ queryKey: ['alerts'] });
-      toast(`Configuração salva. Alertas ativos para ${p.areas.length} áreas.`);
+      toast(
+        novosAlertas.length > 0
+          ? `Configuração salva. ${novosAlertas.length} novo(s) alerta(s) — a operação saiu do limite em algum ponto.`
+          : `Configuração salva. Alertas ativos para ${usinaAtualizada.areas.length} áreas.`,
+      );
     },
     onError: (e) => toast(e instanceof Error ? e.message : 'Não foi possível salvar.'),
   });

@@ -39,8 +39,32 @@ export const api: Api = {
         const { data } = await client.get('/alerts');
         return data;
     },
-    ask: async (question) => {
-        const { data } = await client.post('/copilot/ask', { question });
+    checkAlerts: async () => {
+        const { data } = await client.post('/alerts/check');
+        return data;
+    },
+    listNoticias: async (setor) => {
+        const { data } = await client.get(`/noticias${setor ? `?setor=${encodeURIComponent(setor)}` : ''}`);
+        return data;
+    },
+    getNormPdf: async (id) => {
+        const { data } = await client.get(`/norms/${id}/pdf`, { responseType: 'blob' });
+        return data;
+    },
+    listChatSessions: async () => {
+        const { data } = await client.get('/chat');
+        return data;
+    },
+    createChatSession: async () => {
+        const { data } = await client.post('/chat');
+        return data;
+    },
+    listChatMessages: async (sessionId) => {
+        const { data } = await client.get(`/chat/${sessionId}/messages`);
+        return data;
+    },
+    sendChatMessage: async (sessionId, question) => {
+        const { data } = await client.post(`/chat/${sessionId}/message`, { question });
         return data;
     },
 };

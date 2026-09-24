@@ -14,6 +14,8 @@ import { ExtracaoModule } from './extracao/extracao.module';
 import { LimiteModule } from './limite/limite.module';
 import { AlertaModule } from './alerta/alerta.module';
 import { CopilotModule } from './copilot/copilot.module';
+import { NoticiaModule } from './noticia/noticia.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
     imports: [
@@ -32,6 +34,8 @@ import { CopilotModule } from './copilot/copilot.module';
         LimiteModule,
         AlertaModule,
         CopilotModule,
+        NoticiaModule,
+        ChatModule,
     ],
     controllers: [AppController],
     providers: [

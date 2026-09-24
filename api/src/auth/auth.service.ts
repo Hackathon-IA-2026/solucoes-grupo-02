@@ -1,6 +1,8 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { UserService } from '../user/user.service';
 import { CompanieService } from '../companie/companie.service';
+import { NotificationService } from '../notification/notification.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UserEntity } from '../user/entities/user.entity';
@@ -22,6 +24,8 @@ export class AuthService {
         private readonly usersService: UserService,
         private readonly jwtService: JwtService,
         private readonly companieService: CompanieService,
+        private readonly notificationService: NotificationService,
+        private readonly config: ConfigService,
     ) {}
 
     buildUserResponse(user: Omit<UserEntity, 'hashPassword'>) {
@@ -41,6 +45,20 @@ export class AuthService {
         const user = await this.usersService.findUserById(userId);
         const token = this.jwtService.sign({ id: userId });
         return { token, user: this.buildUserResponse(user) };
+    }
+
+    async forgotPassword(email: string): Promise<void> {
+        const result = await this.usersService.requestPasswordReset(email);
+        // não revela se o e-mail existe: se não achou, só não manda nada.
+        if (!result) return;
+
+        const webUrl = this.config.get<string>('WEB_URL', 'http://localhost:5173');
+        const resetUrl = `${webUrl}/recuperar-senha?token=${result.token}`;
+        await this.notificationService.sendEmail(
+            result.user.email,
+            'Redefinição de senha — Energy Start',
+            `<p>Recebemos um pedido para redefinir a senha da sua conta.</p><p><a href="${resetUrl}">Clique aqui para criar uma senha nova</a>. O link vale por 1 hora.</p><p>Se você não pediu isso, pode ignorar este e-mail.</p>`,
+        );
     }
 
     async validateUser(email: string, pass: string) {

@@ -36,8 +36,6 @@ export function ProfilePage() {
         if (data) setForm({ name: data.name, role: data.role, phone: data.phone });
     }, [data]);
 
-    const [duasEtapas, setDuasEtapas] = useState(true);
-
     const set = (campo: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [campo]: e.target.value });
 
     const salvar = useMutation({
@@ -155,12 +153,6 @@ export function ProfilePage() {
                     <Panel>
                         <PanelTitle titulo="Conta" />
                         <div className="mt-2">
-                            <SwitchRow
-                                titulo="Verificação em duas etapas"
-                                detalhe="Código por aplicativo"
-                                ativo={duasEtapas}
-                                onToggle={() => setDuasEtapas((v) => !v)}
-                            />
                             <SwitchRow
                                 titulo="Relatório mensal para a diretoria"
                                 detalhe="Enviado no dia 1º"

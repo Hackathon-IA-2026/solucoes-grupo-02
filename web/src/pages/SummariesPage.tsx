@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
 import { TELA } from '../components/AppShell';
 import { Button, ImpactBadge, PageHead, SrcBadge, cx } from '../components/ui';
@@ -18,6 +18,21 @@ export function SummariesPage() {
   }, [normas, ativa]);
 
   const norma = normas.find((n) => n.id === ativa);
+
+  const baixarPdf = useMutation({
+    mutationFn: (id: string) => api.getNormPdf(id),
+    onSuccess: (blob, id) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `resumo-${id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    },
+    onError: (e) => toast(e instanceof Error ? e.message : 'Não foi possível baixar o PDF.'),
+  });
 
   return (
     <section className={TELA}>
@@ -82,8 +97,8 @@ export function SummariesPage() {
                 <Button variante="ghost" onClick={() => (norma.url ? window.open(norma.url, '_blank') : toast('O documento oficial abriria em nova aba.'))}>
                   Abrir documento original
                 </Button>
-                <Button variante="ghost" onClick={() => toast('Resumo baixado em PDF.')}>
-                  Baixar resumo em PDF
+                <Button variante="ghost" onClick={() => baixarPdf.mutate(norma.id)} disabled={baixarPdf.isPending}>
+                  {baixarPdf.isPending ? 'Gerando PDF…' : 'Baixar resumo em PDF'}
                 </Button>
               </div>
             </>

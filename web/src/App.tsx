@@ -6,6 +6,7 @@ import { CopilotPage } from './pages/CopilotPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { LoginPage } from './pages/LoginPage';
+import { NoticiasPage } from './pages/NoticiasPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { RegisterPage } from './pages/RegisterPage';
 import { SummariesPage } from './pages/SummariesPage';
@@ -31,6 +32,7 @@ export function App() {
                 <Route path="/painel" element={<DashboardPage />} />
                 <Route path="/alertas" element={<AlertsPage />} />
                 <Route path="/resumos" element={<SummariesPage />} />
+                <Route path="/noticias" element={<NoticiasPage />} />
                 <Route path="/copiloto" element={<CopilotPage />} />
                 <Route path="/perfil" element={<ProfilePage />} />
             </Route>

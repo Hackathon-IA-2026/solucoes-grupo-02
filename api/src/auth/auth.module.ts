@@ -12,11 +12,13 @@ import { LocalStrategy } from './strategies/local.strategy';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserEntity } from '../user/entities/user.entity';
 import { CompanieModule } from '../companie/companie.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([UserEntity]),
         CompanieModule,
+        NotificationModule,
         JwtModule.registerAsync({
             global: true,
             inject: [ConfigService],

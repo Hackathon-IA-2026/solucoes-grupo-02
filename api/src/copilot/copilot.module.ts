@@ -8,5 +8,6 @@ import { CopilotController } from './copilot.controller';
     imports: [TrechoModule, NormaModule],
     controllers: [CopilotController],
     providers: [CopilotService],
+    exports: [CopilotService],
 })
 export class CopilotModule {}

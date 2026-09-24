@@ -1,8 +1,10 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Put, UseGuards, Request } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, HttpStatus, Post, Put, UseGuards, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { UserService } from '@/user/user.service';
 import { CreateUserDto } from '@/user/dto/create-user.dto';
 import { UpdateProfileDto } from '@/user/dto/update-profile.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { IsPublic } from './decorators/is-public.decorator';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { UserPayload } from './types/user.payload.type';
@@ -29,6 +31,21 @@ export class AuthController {
     async register(@Body() dto: CreateUserDto) {
         const user = await this.userService.createUser(dto);
         return await this.authService.buildSession(user.id);
+    }
+
+    @IsPublic()
+    @HttpCode(HttpStatus.OK)
+    @Post('forgot-password')
+    async forgotPassword(@Body() dto: ForgotPasswordDto) {
+        await this.authService.forgotPassword(dto.email);
+    }
+
+    @IsPublic()
+    @HttpCode(HttpStatus.OK)
+    @Post('reset-password')
+    async resetPassword(@Body() dto: ResetPasswordDto) {
+        const ok = await this.userService.resetPasswordWithToken(dto.token, dto.password);
+        if (!ok) throw new BadRequestException('Link inválido ou expirado.');
     }
 
     @UseGuards(JwtAuthGuard)

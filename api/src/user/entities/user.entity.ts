@@ -19,4 +19,10 @@ export class UserEntity extends BaseEntity {
 
     @Column({ name: 'monthly_report_enabled', default: false })
     monthlyReportEnabled!: boolean;
+
+    @Column({ name: 'reset_password_token', nullable: true })
+    resetPasswordToken?: string;
+
+    @Column({ name: 'reset_password_expires_at', type: 'timestamp', nullable: true })
+    resetPasswordExpiresAt?: Date;
 }

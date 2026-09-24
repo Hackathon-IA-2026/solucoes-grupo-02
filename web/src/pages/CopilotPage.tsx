@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
 import { TELA } from '../components/AppShell';
 import { Button, PageHead, cx } from '../components/ui';
@@ -8,62 +9,88 @@ import { useToast } from '../hooks/useToast';
 import type { Citation } from '../types';
 
 interface Mensagem {
-  id: number;
+  id: string;
   autor: 'user' | 'bot';
   html: string;
   citations?: Citation[];
 }
 
 const SUGESTOES = ['Quais prazos vencem este mês?', 'O que muda no meu faturamento?', 'Preciso protocolar alguma coisa?'];
-const HISTORICO = [
-  { titulo: 'Medição em 230 kV', quando: 'hoje' },
-  { titulo: 'Encargos no Nordeste', quando: 'ontem' },
-  { titulo: 'Prazo de outorga', quando: '11/09' },
-  { titulo: 'Híbridas e conexão', quando: '04/09' },
-];
-
 const RESPOSTA_HTML = '[&_p+p]:mt-[9px] [&_ul]:mt-[9px] [&_ul]:list-disc [&_ul]:pl-[19px] [&_li]:mt-1';
+
+const SAUDACAO: Mensagem = {
+  id: 'saudacao',
+  autor: 'bot',
+  html: '<p>Pergunte sobre uma norma, prazo ou obrigação. Posso responder direto ou apontar o artigo que sustenta a resposta.</p>',
+};
 
 export function CopilotPage() {
   const [params, setParams] = useSearchParams();
   const { user } = useAuth();
   const toast = useToast();
-  const [mensagens, setMensagens] = useState<Mensagem[]>([
-    {
-      id: 0,
-      autor: 'bot',
-      html: '<p>Bom dia. Acompanhei 142 publicações nos últimos 7 dias e 3 delas tocam a sua usina.</p><p>Posso detalhar qualquer uma, ou responder direto sobre prazos, encargos e obrigações.</p>',
-    },
-  ]);
+  const qc = useQueryClient();
+
+  const [sessaoId, setSessaoId] = useState<string | null>(null);
+  const [pendente, setPendente] = useState<Mensagem[]>([]);
   const [texto, setTexto] = useState('');
-  const [pensando, setPensando] = useState(false);
   const [abertas, setAbertas] = useState<Record<string, boolean>>({});
   const logRef = useRef<HTMLDivElement>(null);
   const perguntaInicial = params.get('q');
 
+  const { data: sessoes = [] } = useQuery({ queryKey: ['chat-sessions'], queryFn: api.listChatSessions });
+  const { data: mensagensSalvas = [] } = useQuery({
+    queryKey: ['chat-messages', sessaoId],
+    queryFn: () => api.listChatMessages(sessaoId!),
+    enabled: !!sessaoId,
+  });
+
+  const enviarMutation = useMutation({
+    mutationFn: async (pergunta: string) => {
+      let sid = sessaoId;
+      if (!sid) {
+        const nova = await api.createChatSession();
+        sid = nova.id;
+        setSessaoId(sid);
+      }
+      await api.sendChatMessage(sid, pergunta);
+      return sid;
+    },
+    onSuccess: async (sid) => {
+      await qc.invalidateQueries({ queryKey: ['chat-messages', sid] });
+      qc.invalidateQueries({ queryKey: ['chat-sessions'] });
+      setPendente([]);
+    },
+    onError: (e) => {
+      toast(e instanceof Error ? e.message : 'O copiloto não respondeu.');
+      setPendente([]);
+    },
+  });
+
+  const mensagens: Mensagem[] =
+    mensagensSalvas.length > 0
+      ? mensagensSalvas.map((m) => ({ id: m.id, autor: m.autor, html: m.texto, citations: m.citacoes }))
+      : sessaoId
+        ? []
+        : [SAUDACAO];
+
+  const mensagensExibidas = [...mensagens, ...pendente];
+
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
-  }, [mensagens, pensando]);
+  }, [mensagensExibidas.length, enviarMutation.isPending]);
 
   useEffect(() => {
     if (!perguntaInicial) return;
     setParams({}, { replace: true });
     void perguntar(perguntaInicial);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [perguntaInicial]);
 
   async function perguntar(pergunta: string) {
     const limpa = pergunta.trim();
-    if (!limpa || pensando) return;
-    setMensagens((m) => [...m, { id: Date.now(), autor: 'user', html: limpa }]);
-    setPensando(true);
-    try {
-      const r = await api.ask(limpa);
-      setMensagens((m) => [...m, { id: Date.now() + 1, autor: 'bot', html: r.answer, citations: r.citations }]);
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'O copiloto não respondeu.');
-    } finally {
-      setPensando(false);
-    }
+    if (!limpa || enviarMutation.isPending) return;
+    setPendente((p) => [...p, { id: `local-${Date.now()}`, autor: 'user', html: limpa }]);
+    enviarMutation.mutate(limpa);
   }
 
   function enviar() {
@@ -77,22 +104,28 @@ export function CopilotPage() {
 
       <div className="grid items-start gap-[18px] lg:grid-cols-[230px_minmax(0,1fr)]">
         <div className="order-2 rounded-lg border border-line bg-surface p-3.5 lg:order-1">
-          <h3 className="mb-2.5 text-[13px] font-bold text-ink-2">Conversas</h3>
-          {HISTORICO.map((h, i) => (
+          <div className="mb-2.5 flex items-center justify-between">
+            <h3 className="text-[13px] font-bold text-ink-2">Conversas</h3>
+            <button onClick={() => setSessaoId(null)} className="text-[12.5px] font-semibold text-brand hover:underline">
+              + Nova
+            </button>
+          </div>
+          {sessoes.length === 0 && <p className="text-[12.8px] text-ink-3">Sem conversas ainda.</p>}
+          {sessoes.map((s) => (
             <button
-              key={h.titulo}
-              aria-current={i === 0}
+              key={s.id}
+              aria-current={s.id === sessaoId}
+              onClick={() => setSessaoId(s.id)}
               className="block w-full rounded-md px-2.5 py-[9px] text-left text-[13.4px] text-ink-2 hover:bg-surface-2 aria-[current=true]:bg-surface-2 aria-[current=true]:font-semibold aria-[current=true]:text-ink"
             >
-              {h.titulo}
-              <span className="block text-[11.5px] font-normal text-ink-3">{h.quando}</span>
+              {s.titulo}
             </button>
           ))}
         </div>
 
         <div className="order-1 flex min-h-[440px] flex-col rounded-lg border border-line bg-surface lg:order-2 lg:h-[74vh] lg:min-h-[520px]">
           <div ref={logRef} className="flex max-h-[52vh] flex-1 flex-col gap-[18px] overflow-y-auto px-6 py-[22px] lg:max-h-none">
-            {mensagens.map((m) => (
+            {mensagensExibidas.map((m) => (
               <div key={m.id} className={cx('flex max-w-[min(100%,760px)] gap-[11px]', m.autor === 'user' && 'flex-row-reverse self-end')}>
                 <div
                   className={cx(
@@ -121,7 +154,10 @@ export function CopilotPage() {
                       {m.citations
                         .filter((c) => abertas[`${m.id}-${c.label}`])
                         .map((c) => (
-                          <div key={c.label} className="mt-[11px] rounded-md border border-dashed border-line-strong px-[13px] py-[11px] text-[13.2px] text-ink-2">
+                          <div
+                            key={c.label}
+                            className="mt-[11px] rounded-md border border-dashed border-line-strong px-[13px] py-[11px] text-[13.2px] text-ink-2"
+                          >
                             <b className="mb-1 block text-[12.8px] text-ink">{c.label}</b>
                             {c.excerpt}
                           </div>
@@ -132,7 +168,7 @@ export function CopilotPage() {
               </div>
             ))}
 
-            {pensando && (
+            {enviarMutation.isPending && (
               <div className="flex gap-[11px]">
                 <div className="grid h-[29px] w-[29px] shrink-0 place-items-center rounded-md bg-navy text-[11.5px] font-bold text-accent">ES</div>
                 <div className="rounded-md bg-surface-2">
@@ -181,7 +217,7 @@ export function CopilotPage() {
               }}
               className="max-h-[120px] min-h-[44px] flex-1 resize-none rounded-md border border-line-strong bg-surface px-[13px] py-[11px] focus:border-brand focus:outline-none"
             />
-            <Button onClick={enviar} disabled={pensando}>
+            <Button onClick={enviar} disabled={enviarMutation.isPending}>
               Enviar
             </Button>
           </div>

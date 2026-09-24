@@ -34,6 +34,17 @@ export interface Plant {
     frequency: string;
 }
 
+export interface Noticia {
+    id: string;
+    title: string;
+    summary: string;
+    source: string;
+    url?: string;
+    imageUrl?: string;
+    setor?: string;
+    date: string;
+}
+
 export interface Alert {
     id: string;
     severity: Impact;
@@ -51,6 +62,20 @@ export interface Citation {
 export interface CopilotAnswer {
     answer: string;
     citations: Citation[];
+}
+
+export interface ChatSession {
+    id: string;
+    titulo: string;
+    atualizadoEm: string;
+}
+
+export interface ChatMessage {
+    id: string;
+    autor: 'user' | 'bot';
+    texto: string;
+    citacoes: Citation[];
+    criadoEm: string;
 }
 
 export interface User {
@@ -82,7 +107,13 @@ export interface Api {
     getPlant(): Promise<Plant>;
     updatePlant(patch: Partial<Plant>): Promise<Plant>;
     listAlerts(): Promise<Alert[]>;
-    ask(question: string): Promise<CopilotAnswer>;
+    checkAlerts(): Promise<Alert[]>;
+    listNoticias(setor?: string): Promise<Noticia[]>;
+    getNormPdf(id: string): Promise<Blob>;
+    listChatSessions(): Promise<ChatSession[]>;
+    createChatSession(): Promise<ChatSession>;
+    listChatMessages(sessionId: string): Promise<ChatMessage[]>;
+    sendChatMessage(sessionId: string, question: string): Promise<CopilotAnswer>;
 }
 
 export interface RegisterInput {

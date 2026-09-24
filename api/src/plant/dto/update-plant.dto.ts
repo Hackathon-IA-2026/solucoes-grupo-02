@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsBoolean, IsDateString, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { IsArray, IsBoolean, IsDateString, IsNumber, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
 
 class PlantChannelsDto {
     @IsBoolean()
@@ -16,6 +16,10 @@ class PlantChannelsDto {
 }
 
 export class UpdatePlantDto {
+    @IsUUID()
+    @IsOptional()
+    id?: string;
+
     @IsString()
     @IsOptional()
     name?: string;

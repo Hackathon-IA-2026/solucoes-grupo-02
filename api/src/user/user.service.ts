@@ -5,6 +5,7 @@ import { UserEntity } from './entities/user.entity';
 import { BaseService } from '../base.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 @Injectable()
 export class UserService extends BaseService<UserEntity> {
     constructor(
@@ -85,5 +86,31 @@ export class UserService extends BaseService<UserEntity> {
             return null;
         }
         return user;
+    }
+
+    // Não lança se o e-mail não existir — quem chama isso não deve vazar pro
+    // cliente se um e-mail está cadastrado ou não.
+    async requestPasswordReset(email: string): Promise<{ user: UserEntity; token: string } | null> {
+        const user = await this.findByEmail(email);
+        if (!user) return null;
+
+        const token = randomBytes(24).toString('hex');
+        const resetPasswordExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
+        await this.repository.update(user.id, { resetPasswordToken: token, resetPasswordExpiresAt });
+        return { user, token };
+    }
+
+    async resetPasswordWithToken(token: string, newPassword: string): Promise<boolean> {
+        const user = await this.repository.findOneBy({ resetPasswordToken: token });
+        if (!user || !user.resetPasswordExpiresAt || user.resetPasswordExpiresAt.getTime() < Date.now()) {
+            return false;
+        }
+        const hashPassword = await bcrypt.hash(newPassword, 10);
+        await this.repository.update(user.id, {
+            hashPassword,
+            resetPasswordToken: null,
+            resetPasswordExpiresAt: null,
+        } as unknown as Partial<UserEntity>);
+        return true;
     }
 }

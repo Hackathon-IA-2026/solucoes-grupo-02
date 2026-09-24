@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
-import { PlantService } from './plant.service';
+import { PlantService, toPlantResponse } from './plant.service';
 import { UpdatePlantDto } from './dto/update-plant.dto';
 
 @Controller('plants')
@@ -8,11 +8,11 @@ export class PlantController {
 
     @Get('me')
     async getPlant() {
-        return await this.plantService.getPlant();
+        return toPlantResponse(await this.plantService.getPlant());
     }
 
     @Put('me')
     async updatePlant(@Body() dto: UpdatePlantDto) {
-        return await this.plantService.updatePlant(dto);
+        return toPlantResponse(await this.plantService.updatePlant(dto));
     }
 }

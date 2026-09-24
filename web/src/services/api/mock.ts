@@ -1,4 +1,4 @@
-import type { Api, Alert, CopilotAnswer, Norm, Plant, RegisterInput, Session, Source, User } from '../../types';
+import type { Api, Alert, ChatMessage, ChatSession, CopilotAnswer, Norm, Noticia, Plant, RegisterInput, Session, Source, User } from '../../types';
 
 const espera = (ms = 320) => new Promise((r) => setTimeout(r, ms));
 
@@ -146,6 +146,45 @@ const ALERTAS: Alert[] = [
     },
 ];
 
+const NOTICIAS: Noticia[] = [
+    {
+        id: 'no1',
+        title: 'Leilão de eólicas offshore no Nordeste atrai fundos internacionais',
+        summary: 'Investidores europeus sinalizam interesse em blocos próximos ao litoral pernambucano, o que pode pressionar o preço da terra e do frete portuário na região.',
+        source: 'Canal Energia',
+        setor: 'Eólica',
+        date: '16/09',
+        url: 'https://www.canalenergia.com.br',
+    },
+    {
+        id: 'no2',
+        title: 'Custo de baterias para armazenamento cai 12% no último trimestre',
+        summary: 'Queda no preço do lítio e novos fornecedores asiáticos tornam projetos híbridos eólica+armazenamento mais competitivos frente ao gás.',
+        source: 'Valor Econômico',
+        setor: 'Armazenamento',
+        date: '15/09',
+        url: 'https://valor.globo.com',
+    },
+    {
+        id: 'no3',
+        title: 'ONS projeta recorde de geração renovável para o próximo verão',
+        summary: 'Previsão aponta para participação inédita de eólica e solar na matriz do Nordeste entre dezembro e março, com risco de curtailment em dias de baixa carga.',
+        source: 'Agência CanalEnergia',
+        setor: 'Eólica',
+        date: '14/09',
+        url: 'https://www.canalenergia.com.br',
+    },
+    {
+        id: 'no4',
+        title: 'Fabricantes de turbinas revisam prazo de entrega para 2027',
+        summary: 'Gargalos na cadeia de componentes na Ásia devem atrasar encomendas — projetos que dependem de equipamento novo já sentem o efeito nos cronogramas.',
+        source: 'Reuters Brasil',
+        setor: 'Eólica',
+        date: '11/09',
+        url: 'https://www.reuters.com',
+    },
+];
+
 const RESPOSTAS: Array<{ m: RegExp } & CopilotAnswer> = [
     {
         m: /medi(ç|c)(ã|a)o|230|5 minutos/i,
@@ -200,6 +239,24 @@ const RESPOSTAS: Array<{ m: RegExp } & CopilotAnswer> = [
         ],
     },
 ];
+
+let SESSOES: ChatSession[] = [
+    { id: 'c1', titulo: 'Medição em 230 kV', atualizadoEm: new Date().toISOString() },
+    { id: 'c2', titulo: 'Encargos no Nordeste', atualizadoEm: new Date(Date.now() - 86400000).toISOString() },
+];
+
+const MENSAGENS: Record<string, ChatMessage[]> = {
+    c1: [
+        {
+            id: 'm1',
+            autor: 'bot',
+            texto: '<p>Bom dia. Acompanhei 142 publicações nos últimos 7 dias e 3 delas tocam a sua usina.</p><p>Posso detalhar qualquer uma, ou responder direto sobre prazos, encargos e obrigações.</p>',
+            citacoes: [],
+            criadoEm: new Date().toISOString(),
+        },
+    ],
+    c2: [],
+};
 
 const FALLBACK: CopilotAnswer = {
     answer: '<p>Não encontrei um dispositivo em vigor que responda a isso com precisão, e prefiro não completar a lacuna por conta própria.</p><p>Nas bases indexadas há material próximo sobre medição, encargos e outorga. Reformule com o tema ou o número da norma e eu volto com o artigo exato.</p>',
@@ -272,9 +329,48 @@ export const api: Api = {
         await espera(200);
         return ALERTAS;
     },
-    async ask(question) {
+    async checkAlerts() {
+        await espera(200);
+        return [];
+    },
+    async listNoticias(setor?: string) {
+        await espera(220);
+        return !setor ? NOTICIAS : NOTICIAS.filter((n) => n.setor === setor);
+    },
+    async getNormPdf() {
+        await espera(300);
+        return new Blob(['Resumo (mock) — sem PDF real fora do modo conectado à API.'], { type: 'application/pdf' });
+    },
+    async listChatSessions() {
+        await espera(150);
+        return [...SESSOES].sort((a, b) => +new Date(b.atualizadoEm) - +new Date(a.atualizadoEm));
+    },
+    async createChatSession() {
+        await espera(150);
+        const sessao: ChatSession = { id: `c${Date.now()}`, titulo: 'Nova conversa', atualizadoEm: new Date().toISOString() };
+        SESSOES = [sessao, ...SESSOES];
+        MENSAGENS[sessao.id] = [];
+        return sessao;
+    },
+    async listChatMessages(sessionId: string) {
+        await espera(150);
+        return MENSAGENS[sessionId] ?? [];
+    },
+    async sendChatMessage(sessionId: string, question: string) {
         await espera(820);
+        const mensagens = MENSAGENS[sessionId] ?? (MENSAGENS[sessionId] = []);
+        mensagens.push({ id: `m${Date.now()}`, autor: 'user', texto: question, citacoes: [], criadoEm: new Date().toISOString() });
+
         const hit = RESPOSTAS.find((r) => r.m.test(question));
-        return hit ? { answer: hit.answer, citations: hit.citations } : FALLBACK;
+        const resposta = hit ? { answer: hit.answer, citations: hit.citations } : FALLBACK;
+        mensagens.push({ id: `m${Date.now() + 1}`, autor: 'bot', texto: resposta.answer, citacoes: resposta.citations, criadoEm: new Date().toISOString() });
+
+        const sessao = SESSOES.find((s) => s.id === sessionId);
+        if (sessao) {
+            if (sessao.titulo === 'Nova conversa') sessao.titulo = question.length > 60 ? `${question.slice(0, 57)}…` : question;
+            sessao.atualizadoEm = new Date().toISOString();
+        }
+
+        return resposta;
     },
 };

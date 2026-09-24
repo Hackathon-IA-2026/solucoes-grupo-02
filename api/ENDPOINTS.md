@@ -4,8 +4,10 @@
 
 - POST /auth/register - Cria o usuário.
 - POST /auth/login - Retorna o JWT Token.
-- GET /profile - Pega os dados do usuário
-- PUT /profile - Altera os dados do usuário
+- POST /auth/forgot-password - Gera um token de redefinição e manda por e-mail (não revela se o e-mail existe ou não).
+- POST /auth/reset-password - Troca a senha a partir do token recebido por e-mail.
+- GET /auth/me - Pega os dados do usuário logado (era `/profile` no plano original).
+- PUT /auth/me - Altera os dados do usuário logado (era `/profile`).
 - GET /companie - Pega os dados da empresa (razão social/CNPJ vêm do `.env`, já embutidos na resposta de `/auth/me`)
 
 ## Configurações da usina (/plants) (cassano)
@@ -31,24 +33,29 @@
 - PUT /user/:id - Atualiza o usuário. Todos os campos são opcionais.
 - DELETE /user/:id - Remove o usuário (soft delete). Retorna 204.
 
-## Feed de Resumos (/feed)
+## Normas / Feed de Resumos (/norms) (cassano)
 
-- GET /feed - Lista os resumos diários das normativas (com paginação). Pode receber filtros: ?source=ANEEL.
+> Implementado como `/norms` (não `/feed`), pra bater com `web/src/api/http.ts`.
 
-## Motor de Alertas (/alerts)
+- POST/GET/GET:id/PUT/DELETE /norms - CRUD completo. `GET /norms?source=aneel` filtra por fonte.
+- GET /norms/:id/pdf - Gera e baixa um PDF de verdade do resumo (via `pdfkit`).
+
+## Motor de Alertas (/alerts) (cassano)
 
 - GET /alerts - Lista os alertas da empresa logada (ordem cronológica).
-
-<!-- - GET /alertas/{id} - Detalhe com trecho da norma, artigo e link -->
-
+- POST /alerts/check - **Cruza `limites` × `configuracoes` de verdade** (o "Motor de Alertas: Cruza Lei x Perfil" do diagrama) e cria um alerta pra cada regra descumprida (sem duplicar se já existe um alerta não lido pro mesmo limite). Dispara e-mail pros usuários se `channels.email` estiver ligado no perfil da usina. O front chama isso logo depois de `PUT /plants/me`.
 - PATCH /alerts/:id/read - Marca o alerta como lido (para apagar a bolinha de notificação no front).
 
-## Copiloto RAG (/chat)
+> `parametro` em `limites` precisa bater com um campo numérico de `configuracoes` (`capacityMw`, `co2` ou `availability`) pro motor saber o que comparar — é uma convenção, não uma FK.
+
+## Copiloto RAG (/chat) (cassano)
 
 - POST /chat - Cria uma nova sessão de conversa.
-- GET /chat - Lista o histórico de conversas antigas.
+- GET /chat - Lista as conversas do usuário logado (mais recente primeiro).
 - GET /chat/:sessionId/messages - Carrega as mensagens de um chat específico.
-- POST /chat/:sessionId/message - (O Endpoint mais complexo) Recebe a pergunta do usuário. O NestJS pega essa pergunta, envia via requisição HTTP interna para o seu Microsserviço em Python, espera a resposta do RAG, salva no banco e devolve para o frontend.
+- POST /chat/:sessionId/message - Salva a pergunta, gera a resposta e salva a resposta, devolve pro front.
+
+> Implementado, mas **sem o microsserviço Python/RAG real** — a "geração de resposta" hoje é busca por palavra-chave nos `trechos` (`TrechoService.searchByText`), não embedding + LLM. Trocar a implementação interna de `CopilotService.ask()` quando o serviço de IA existir; os endpoints e o histórico de conversas já ficam prontos.
 
 ## Rotas internas (se der tempo)
 
@@ -72,3 +79,6 @@ Disparam as etapas pesadas do pipeline. Protegidas por uma chave própria e nunc
 - limites (id, norma_id, extracao_id, parâmetro, operador, valor, unidade, valor em kW, valor máximo, condições, vigência, artigo, trecho literal, status) (roberto)
 - alertas (id, usina_id, limite_id ou norma_id, tipo, severidade, valor da usina, valor do limite, distância (%), mensagem, lido, criado em) (roberto)
 - trechos (id, norma_id, artigo, ordem, texto, vetor) (cassano)
+- noticias (id, titulo, resumo, fonte, url, image_url, setor, publicado_em) (cassano)
+- chat_sessions (id, user_id, titulo) (cassano)
+- chat_mensagens (id, session_id, autor, texto, citacoes) (cassano)
