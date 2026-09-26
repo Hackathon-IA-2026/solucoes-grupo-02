@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api, MODO_MOCK } from '../services/api';
 import { TELA } from '../components/AppShell';
-import { Button, ImpactBadge, LimitBar, Panel, PanelTitle, SrcBadge, TagImpacto, cx, fmt } from '../components/ui';
+import { Button, Chip, ImpactBadge, LimitBar, Panel, PanelTitle, SrcBadge, TagImpacto, cx, fmt } from '../components/ui';
 import { diasAte } from '../utils/format';
-import type { Source } from '../types';
+import type { Escopo, Source } from '../types';
 
 const FILTROS: Array<{ id: Source | 'todas'; rotulo: string }> = [
   { id: 'todas', rotulo: 'Todas' },
@@ -18,10 +18,11 @@ const BARRA: Record<string, string> = { alto: 'bg-danger', medio: 'bg-accent', b
 
 export function DashboardPage() {
   const [filtro, setFiltro] = useState<Source | 'todas'>('todas');
+  const [escopo, setEscopo] = useState<Escopo>('minhas');
   const navigate = useNavigate();
   const { data: usina } = useQuery({ queryKey: ['plant'], queryFn: api.getPlant });
-  const { data: normas = [], isLoading } = useQuery({ queryKey: ['norms', filtro], queryFn: () => api.listNorms(filtro) });
-  const { data: todas = [] } = useQuery({ queryKey: ['norms', 'todas'], queryFn: () => api.listNorms('todas') });
+  const { data: normas = [], isLoading } = useQuery({ queryKey: ['norms', filtro, escopo], queryFn: () => api.listNorms(filtro, escopo) });
+  const { data: todas = [] } = useQuery({ queryKey: ['norms', 'todas', escopo], queryFn: () => api.listNorms('todas', escopo) });
   const { data: alertas = [] } = useQuery({ queryKey: ['alerts'], queryFn: api.listAlerts });
 
   // Norma sem data de publicação (dados do mock) conta como recente.
@@ -125,6 +126,10 @@ export function DashboardPage() {
       <div className="mb-3 mt-[30px] flex flex-wrap items-baseline justify-between gap-3.5">
         <h2 className="text-lg font-bold">Radar regulatório</h2>
         <div className="flex flex-wrap gap-1.5">
+          <Chip ativo={escopo === 'minhas'} onClick={() => setEscopo(escopo === 'minhas' ? 'todas' : 'minhas')}>
+            Só minhas áreas
+          </Chip>
+          <span className="mx-1 w-px self-stretch bg-line-strong" aria-hidden="true" />
           {FILTROS.map((f) => (
             <button
               key={f.id}
@@ -142,7 +147,9 @@ export function DashboardPage() {
         {isLoading && <div className="px-5 py-[26px] text-sm text-ink-2">Carregando o radar…</div>}
         {!isLoading && normas.length === 0 && (
           <div className="px-5 py-[26px] text-sm text-ink-2">
-            Nenhuma publicação dessa fonte nos últimos 7 dias. Amplie o filtro para ver o restante do radar.
+            {escopo === 'minhas'
+              ? 'Nenhuma publicação dessa fonte nas áreas que a sua empresa monitora. Desmarque "Só minhas áreas" para ver o restante do radar.'
+              : 'Nenhuma publicação dessa fonte. Amplie o filtro para ver o restante do radar.'}
           </div>
         )}
         {normas.map((n) => (

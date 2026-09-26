@@ -30,6 +30,11 @@ export class NormaEntity extends BaseEntity {
     @Column({ type: 'text', array: true, default: '{}' })
     changes!: string[];
 
+    // Trecho literal da norma que comprova cada mudança (mesma posição de `changes`;
+    // '' quando não houver) — a rastreabilidade que a tela de Resumos mostra.
+    @Column({ name: 'change_sources', type: 'text', array: true, default: '{}' })
+    changeSources!: string[];
+
     // "Por que importa pra você": hoje é global por norma (simplificação de MVP).
     // O correto a médio prazo é isso vir personalizado por empresa, cruzando com
     // `limites`/`configuracoes` em vez de morar fixo aqui.
@@ -47,6 +52,11 @@ export class NormaEntity extends BaseEntity {
 
     // Campos "de ingestão", como documentado em ENDPOINTS.md — preenchidos pelo
     // pipeline de coleta/extração quando ele existir.
+    // Norma-base em vigor (Lei 14.300, REN 1.000...) carregada para o copiloto consultar:
+    // não aparece no radar de novidades e não gera alerta de "norma nova".
+    @Column({ default: false })
+    canonica!: boolean;
+
     @Column({ nullable: true })
     orgao?: string;
 

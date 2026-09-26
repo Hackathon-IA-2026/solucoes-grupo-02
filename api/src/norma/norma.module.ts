@@ -3,9 +3,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { NormaEntity } from './entities/norma.entity';
 import { NormaService } from './norma.service';
 import { NormaController } from './norma.controller';
+import { PlantModule } from '../plant/plant.module';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([NormaEntity])],
+    imports: [TypeOrmModule.forFeature([NormaEntity]), PlantModule],
     controllers: [NormaController],
     providers: [NormaService],
     exports: [NormaService],

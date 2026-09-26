@@ -1,0 +1,7 @@
+# Segredos entram por variável de ambiente (env_file do docker-compose), nunca na imagem.
+.env
+.venv/
+__pycache__/
+data/*
+!data/canonicas/
+notebook/

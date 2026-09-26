@@ -13,18 +13,16 @@ import os
 
 import pandas as pd
 import requests
+from dotenv import load_dotenv
 
-# URL = "https://integrate.api.nvidia.com/v1/chat/completions"
+load_dotenv()  # lê NVIDIA_KEY_CLASSIFIER do arquivo .env
+
 # MODELO = "google/diffusiongemma-26b-a4b-it"
-# CHAVE = "Bearer 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"
+# MODELO = "google/gemma-4-31b-it"
 
 URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 MODELO = "openai/gpt-oss-20b"
-CHAVE = "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"
-
-# URL = "https://integrate.api.nvidia.com/v1/chat/completions"
-# MODELO = "google/gemma-4-31b-it"
-# CHAVE = "Bearer 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"
+CHAVE = f"Bearer {os.getenv('NVIDIA_KEY_CLASSIFIER', '')}"
 
 # ------------------------------------------------------------
 # 1. Taxonomia: áreas e subáreas do protótipo
@@ -165,7 +163,7 @@ def chamar_nvidia(mensagens):
     r = requests.post(URL, headers=headers, json=payload, timeout=120)
     if r.status_code in (401, 403):
         raise RuntimeError(
-            "Chave inválida ou sem permissão. Confira o Secret NVIDIA_KEY."
+            "Chave inválida ou sem permissão. Confira NVIDIA_KEY_CLASSIFIER no .env."
         )
     r.raise_for_status()  # outros erros (limite, servidor) sobem para nova tentativa
     return r.json()["choices"][0]["message"]["content"] or ""

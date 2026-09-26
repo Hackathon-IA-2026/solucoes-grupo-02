@@ -1,11 +1,13 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { NoticiaService, toNoticiaResponse } from './noticia.service';
 import { CreateNoticiaDto } from './dto/create-noticia.dto';
+import { Interno } from '../ingestao/interno.decorator';
 
 @Controller('noticias')
 export class NoticiaController {
     constructor(private readonly noticiaService: NoticiaService) {}
 
+    @Interno()
     @Post()
     async create(@Body() dto: CreateNoticiaDto) {
         const noticia = await this.noticiaService.create(dto);
@@ -24,6 +26,7 @@ export class NoticiaController {
         return toNoticiaResponse(noticia);
     }
 
+    @Interno()
     @Delete(':id')
     async remove(@Param('id', ParseUUIDPipe) id: string) {
         await this.noticiaService.remove(id);

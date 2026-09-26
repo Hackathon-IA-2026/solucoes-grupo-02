@@ -19,8 +19,11 @@ export const api: Api = {
         const { data } = await client.put('/auth/me', patch);
         return data;
     },
-    listNorms: async (source) => {
-        const { data } = await client.get(`/norms${source && source !== 'todas' ? `?source=${source}` : ''}`);
+    listNorms: async (source, escopo) => {
+        const params: Record<string, string> = {};
+        if (source && source !== 'todas') params.source = source;
+        if (escopo) params.escopo = escopo;
+        const { data } = await client.get('/norms', { params });
         return data;
     },
     getNorm: async (id) => {

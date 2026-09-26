@@ -5,6 +5,7 @@ Uma URL pública servindo o web e a api, com Postgres persistente:
 ```
 Navegador ──http://IP──▶ Task Fargate (IP público)
                            ├─ api      NestJS + build do web   (/ = web, /api/* = api)
+                           ├─ copiloto Python (ai/) em localhost:8000: responde o chat com o Claude no Bedrock
                            └─ postgres localhost:5432 ──▶ disco EFS (dados sobrevivem a reinícios)
 ```
 
@@ -44,7 +45,9 @@ Anote no fim deste arquivo tudo o que for diferente do esperado.
    - Preencha `vpcId`, `publicSubnetIds` e `availabilityZones` em [cdk.json](cdk.json), com as AZs na mesma ordem das subnets.
    - Se `CDKToolkit` não existir: `cd infra && npx cdk bootstrap`.
    - Se o Docker não estiver disponível no Code Editor, **pare e avise o time**. É preciso outro jeito de gerar a imagem (CodeBuild).
-3. **Segredos** (uma vez só): `infra/scripts/setup-secrets.sh`
+3. **Segredos** (uma vez só): `infra/scripts/setup-secrets.sh`. Além da senha do banco e do JWT, cria a
+   chave interna (api ↔ Python) e grava as chaves da NVIDIA, lidas de `ai/.env` (ou das variáveis
+   `NVIDIA_KEY_CLASSIFIER` e `NVIDIA_KEY_SUMMARIZER`). Se faltar um segredo, a task não sobe.
 4. **Deploy**: `infra/scripts/deploy.sh`. O primeiro leva de 10 a 15 min.
 5. **Abrir**: `infra/scripts/url.sh`. Crie um usuário e navegue.
 6. **Testar a persistência**: reinicie a task e confira que o usuário continua existindo:
@@ -52,6 +55,17 @@ Anote no fim deste arquivo tudo o que for diferente do esperado.
    aws ecs update-service --cluster <ClusterName> --service <ServiceName> --force-new-deployment
    ```
 7. **Cronometrar um redeploy**: mude um texto no web e rode `deploy.sh` de novo.
+8. **Base do copiloto** (feito à mão, pelo terminal do container `copiloto`, que tem o código e as chaves do pipeline):
+   ```bash
+   infra/scripts/shell.sh copiloto
+   python carregar_canonicas.py        # normas-base (uma vez; ~10 s)
+   python main.py 25-09-2026           # novidades de um dia do DOU (5–10 min; sem data = hoje)
+   ```
+   Depois pergunte algo no Copiloto do site. O modelo que responde está em `COPILOTO_MODEL_ID`
+   ([lib/app-stack.ts](lib/app-stack.ts)); confira se ele existe na conta com
+   `aws bedrock list-inference-profiles --query "inferenceProfileSummaries[].inferenceProfileId"`.
+   Se a resposta vier genérica ("Encontrei N trechos…"), o copiloto falhou e a api caiu na busca por
+   palavra-chave: `scripts/logs.sh copiloto`.
 
 ## Quando der errado
 
@@ -67,10 +81,11 @@ Anote no fim deste arquivo tudo o que for diferente do esperado.
 | `ResourceInitializationError` com `ssm` / `secrets` | Faltou `setup-secrets.sh` ou o execution role não lê o parâmetro |
 | Navegador fica carregando até dar timeout | Security group da porta 80 ou IP errado (ele muda a cada task: `scripts/url.sh`) |
 | Página abre, mas login dá erro | `scripts/logs.sh api` (erro de banco? `DB_*`/senha) |
+| Copiloto responde "Encontrei N trechos…" em vez de texto | `scripts/logs.sh copiloto`: `AccessDeniedException`/`ValidationException` do Bedrock = `COPILOTO_MODEL_ID` errado ou sem acesso; `401` = `INTERNAL_API_KEY` |
 | `password authentication failed` | O parâmetro `/grupo02/db-password` foi trocado depois que o banco foi criado |
 | Qualquer coisa estranha | `echo $AWS_REGION` tem que ser `us-east-1` |
 
-Outros scripts: `scripts/shell.sh` abre um terminal na api, e `scripts/shell.sh postgres` abre um `psql`
+Outros scripts: `scripts/shell.sh` abre um terminal na api, `scripts/shell.sh copiloto` no Python (pipeline à mão) e `scripts/shell.sh postgres` abre um `psql`
 (precisam do Session Manager plugin).
 
 ## Anotações da sexta

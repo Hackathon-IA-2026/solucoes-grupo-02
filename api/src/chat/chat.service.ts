@@ -3,7 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ChatSessionEntity } from './entities/chat-session.entity';
 import { ChatMessageEntity } from './entities/chat-message.entity';
-import { CopilotService } from '../copilot/copilot.service';
+import { CopilotService, TurnoDaConversa } from '../copilot/copilot.service';
+import { htmlParaTexto } from '../utils/texto';
+
+const MENSAGENS_DE_HISTORICO = 6; // 3 perguntas e 3 respostas
 
 @Injectable()
 export class ChatService {
@@ -29,9 +32,21 @@ export class ChatService {
     async ask(userId: string, companyId: string, sessionId: string, question: string) {
         const session = await this.getSessionOrFail(userId, sessionId);
 
+        // As últimas mensagens da conversa vão junto: "e se for acima de 500 kW?" só faz
+        // sentido com a pergunta anterior.
+        const anteriores = await this.messageRepo.find({
+            where: { sessionId: session.id },
+            order: { createdAt: 'DESC' },
+            take: MENSAGENS_DE_HISTORICO,
+        });
+        const historico: TurnoDaConversa[] = anteriores.reverse().map((m) => ({
+            role: m.autor === 'user' ? 'user' : 'assistant',
+            content: m.autor === 'user' ? m.texto : htmlParaTexto(m.texto),
+        }));
+
         await this.messageRepo.save(this.messageRepo.create({ sessionId: session.id, autor: 'user', texto: question, citacoes: [] }));
 
-        const resposta = await this.copilotService.ask(question, companyId);
+        const resposta = await this.copilotService.ask(question, companyId, historico);
 
         await this.messageRepo.save(
             this.messageRepo.create({ sessionId: session.id, autor: 'bot', texto: resposta.answer, citacoes: resposta.citations }),
