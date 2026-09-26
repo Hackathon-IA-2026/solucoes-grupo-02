@@ -95,7 +95,9 @@ export class AppStack extends cdk.Stack {
             cpu: 1024, // 1 vCPU, somando os containers (o pipeline, quando roda, usa pandas e embeddings)
             memoryLimitMiB: 2048,
             runtimePlatform: {
-                cpuArchitecture: ecs.CpuArchitecture.X86_64,
+                // ARM (Graviton): a mesma arquitetura da máquina do Code Editor, de onde sai o deploy.
+                // Em x86 o build precisaria de emulação (QEMU), e o esbuild do web trava emulado.
+                cpuArchitecture: ecs.CpuArchitecture.ARM64,
                 operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
             },
             volumes: [
@@ -164,7 +166,7 @@ export class AppStack extends cdk.Stack {
         const api = taskDefinition.addContainer('api', {
             image: ecs.ContainerImage.fromAsset(path.join(__dirname, '../..'), {
                 file: 'infra/docker/app.Dockerfile',
-                platform: Platform.LINUX_AMD64,
+                platform: Platform.LINUX_ARM64,
             }),
             essential: true,
             portMappings: [{ containerPort: APP_PORT }],
@@ -191,7 +193,7 @@ export class AppStack extends cdk.Stack {
         // com o Claude no Bedrock. Tem as chaves do pipeline também, então é por ele que se roda
         // a coleta à mão: scripts/shell.sh copiloto  ->  python main.py 25-09-2026
         const copiloto = taskDefinition.addContainer('copiloto', {
-            image: ecs.ContainerImage.fromAsset(path.join(__dirname, '../../ai'), { platform: Platform.LINUX_AMD64 }),
+            image: ecs.ContainerImage.fromAsset(path.join(__dirname, '../../ai'), { platform: Platform.LINUX_ARM64 }),
             command: ['uvicorn', 'servidor:app', '--host', '0.0.0.0', '--port', '8000'],
             // Se cair, a api responde o chat por palavra-chave e o resto continua no ar;
             // o ECS reinicia só este container.

@@ -31,4 +31,6 @@ COPY --from=api /api/node_modules ./node_modules
 COPY --from=api /api/dist ./dist
 COPY --from=web /web/dist ./web
 EXPOSE 80
-CMD ["node", "dist/main"]
+# Anuncia o IP público da task no log (CloudWatch): na conta do hackathon, o participante não pode
+# consultar a interface de rede (ec2:DescribeNetworkInterfaces), então o scripts/url.sh lê o IP daqui.
+CMD ["sh", "-c", "echo \"task-public-ip=$(wget -qO- -T 5 https://checkip.amazonaws.com)\"; exec node dist/main"]
