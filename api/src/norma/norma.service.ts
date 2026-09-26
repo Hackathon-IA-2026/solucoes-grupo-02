@@ -5,6 +5,8 @@ import { BaseService } from '../base.service';
 import { NormaEntity, NormaSource } from './entities/norma.entity';
 import { CreateNormaDto } from './dto/create-norma.dto';
 import { UpdateNormaDto } from './dto/update-norma.dto';
+import { PlantEntity } from '../plant/entities/plant.entity';
+import { assuntosMonitorados } from '../alerta/assuntos-monitorados';
 
 const SOURCE_LABEL: Record<NormaSource, string> = {
     aneel: 'ANEEL',
@@ -34,6 +36,11 @@ export function toNormResponse(norma: NormaEntity) {
         deadline: norma.deadline ?? '',
         deadlineAt: norma.deadlineAt,
         changes: norma.changes ?? [],
+        changeSources: norma.changeSources ?? [],
+        subareas: (norma.subarea ?? '')
+            .split(';')
+            .map((s) => s.trim())
+            .filter(Boolean),
         why: norma.why ?? '',
         url: norma.url,
     };
@@ -52,11 +59,15 @@ export class NormaService extends BaseService<NormaEntity> {
         return await this.persist(dto);
     }
 
-    async list(source?: NormaSource): Promise<NormaEntity[]> {
-        return await this.findAllInstances({
+    // Com `perfil`, devolve só as normas das áreas/subáreas que a empresa monitora
+    // (o feed "do setor de escolha do usuário"). Sem área marcada no perfil, devolve tudo.
+    async list(source?: NormaSource, perfil?: Pick<PlantEntity, 'areas' | 'subareas'>): Promise<NormaEntity[]> {
+        const normas = await this.findAllInstances({
             where: source ? { source } : undefined,
-            order: { publishedAt: 'DESC' },
+            order: { publishedAt: 'DESC', createdAt: 'DESC' },
         });
+        if (!perfil?.areas?.length) return normas;
+        return normas.filter((n) => assuntosMonitorados(n, perfil).length > 0);
     }
 
     async getById(id: string): Promise<NormaEntity> {

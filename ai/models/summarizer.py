@@ -17,10 +17,13 @@ import os
 
 import pandas as pd
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()  # lê NVIDIA_KEY_SUMMARIZER do arquivo .env
 
 URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 MODELO = "google/gemma-4-31b-it"
-CHAVE = "Bearer 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"
+CHAVE = f"Bearer {os.getenv('NVIDIA_KEY_SUMMARIZER', '')}"
 
 SIMILARIDADE_MINIMA = 0.90  # tolerância da conferência de citação
 
@@ -70,7 +73,7 @@ def _ler_json(resposta):
     return json.loads(limpo[limpo.find("{") : limpo.rfind("}") + 1])
 
 
-def chamar_nvidia(mensagens, modelo, max_tokens=2048):
+def chamar_nvidia(mensagens, modelo, max_tokens=8192):  # normas com muitas mudanças estouravam 2048
     headers = {"Authorization": f"{CHAVE}", "Accept": "application/json"}
     payload = {
         "model": modelo,
@@ -82,7 +85,7 @@ def chamar_nvidia(mensagens, modelo, max_tokens=2048):
     r = requests.post(URL, headers=headers, json=payload, timeout=180)
     if r.status_code in (401, 403):
         raise RuntimeError(
-            "Chave inválida ou sem permissão. Confira o Secret NVIDIA_KEY."
+            "Chave inválida ou sem permissão. Confira NVIDIA_KEY_SUMMARIZER no .env."
         )
     r.raise_for_status()
     return r.json()["choices"][0]["message"]["content"] or ""

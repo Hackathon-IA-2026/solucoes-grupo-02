@@ -23,6 +23,7 @@ type Linha = Record<string, unknown>;
 
 const OPERADORES = ['>', '<', '>=', '<=', '='];
 const MAX_TITULO = 140;
+const MAX_AFETADOS = 5;
 
 function str(v: unknown): string | undefined {
     if (typeof v !== 'string') return undefined;
@@ -151,15 +152,16 @@ export function mapearNorma(linha: Linha, hoje = new Date()): NormaMapeada | { e
     const resumoBruto = str(linha.resumo);
     const resumo = resumoBruto && !resumoBruto.startsWith('ERRO') ? resumoBruto : undefined;
 
-    const changes = listaDeObjetos(linha.mudancas)
-        .map((m) => {
-            const oQue = str(m.o_que_mudou) ?? str(m.depois);
-            if (!oQue) return undefined;
-            const antes = str(m.antes);
-            const depois = str(m.depois);
-            return antes && depois ? `${comPonto(oQue)} Antes: ${antes}. Agora: ${depois}.` : comPonto(oQue);
-        })
-        .filter((c): c is string => Boolean(c));
+    // Cada mudança vem com o trecho literal que o resumidor já conferiu contra o texto:
+    // ele vai junto (mesma posição) para a tela mostrar de onde saiu a afirmação.
+    const mudancas = listaDeObjetos(linha.mudancas).flatMap((m) => {
+        const oQue = str(m.o_que_mudou) ?? str(m.depois);
+        if (!oQue) return [];
+        const antes = str(m.antes);
+        const depois = str(m.depois);
+        const texto = antes && depois ? `${comPonto(oQue)} Antes: ${antes}. Agora: ${depois}.` : comPonto(oQue);
+        return [{ texto, fonte: str(m.trecho) ?? '' }];
+    });
 
     // Próximo prazo ainda não vencido (vigência, contribuição de consulta pública, cumprimento...).
     const hojeIso = hoje.toISOString().slice(0, 10);
@@ -174,8 +176,13 @@ export function mapearNorma(linha: Linha, hoje = new Date()): NormaMapeada | { e
         : undefined;
 
     const acao = str(linha.acao_necessaria);
+    // Despachos da ANEEL podem listar dezenas de empresas; o card mostra as primeiras.
     const afetados = listaDeTextos(linha.quem_e_afetado);
-    const why = [acao && `O que fazer: ${comPonto(acao)}`, afetados.length && `Quem é afetado: ${afetados.join(', ')}.`].filter(Boolean).join(' ');
+    const listaAfetados =
+        afetados.length > MAX_AFETADOS
+            ? `${afetados.slice(0, MAX_AFETADOS).join(', ')} e mais ${afetados.length - MAX_AFETADOS}`
+            : afetados.join(', ');
+    const why = [acao && `O que fazer: ${comPonto(acao)}`, afetados.length && `Quem é afetado: ${listaAfetados}.`].filter(Boolean).join(' ');
 
     const limites: LimiteMapeado[] = listaDeObjetos(linha.limites).flatMap((l) => {
         const parametro = str(l.parametro);
@@ -217,7 +224,8 @@ export function mapearNorma(linha: Linha, hoje = new Date()): NormaMapeada | { e
             lead: resumo,
             deadline,
             deadlineAt: proximoPrazo?.data,
-            changes,
+            changes: mudancas.map((m) => m.texto),
+            changeSources: mudancas.map((m) => m.fonte),
             why: why || undefined,
             impact: impactoDaRelevancia(num(linha.relevancia)),
             publishedAt,

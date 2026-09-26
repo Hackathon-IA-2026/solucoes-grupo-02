@@ -5,19 +5,27 @@ import { BaseService } from '../base.service';
 import { AlertaEntity } from './entities/alerta.entity';
 import { CreateAlertaDto } from './dto/create-alerta.dto';
 
-function pad(n: number): string {
-    return String(n).padStart(2, '0');
+// Horário de Brasília, independente do fuso do servidor (no deploy os containers rodam em UTC).
+const EM_BRASILIA = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+});
+
+function emBrasilia(date: Date) {
+    const p = Object.fromEntries(EM_BRASILIA.formatToParts(date).map((x) => [x.type, x.value]));
+    return { dia: `${p.year}-${p.month}-${p.day}`, ddmm: `${p.day}/${p.month}`, hora: `${p.hour}h${p.minute}` };
 }
 
-function formatAt(date: Date): string {
-    const agora = new Date();
-    const hora = `${pad(date.getHours())}h${pad(date.getMinutes())}`;
-    const mesmoDia = date.toDateString() === agora.toDateString();
-    const ontem = new Date(agora);
-    ontem.setDate(agora.getDate() - 1);
-    if (mesmoDia) return `hoje, ${hora}`;
-    if (date.toDateString() === ontem.toDateString()) return `ontem, ${hora}`;
-    return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}, ${hora}`;
+export function formatAt(date: Date, agora = new Date()): string {
+    const d = emBrasilia(date);
+    if (d.dia === emBrasilia(agora).dia) return `hoje, ${d.hora}`;
+    if (d.dia === emBrasilia(new Date(agora.getTime() - 24 * 60 * 60 * 1000)).dia) return `ontem, ${d.hora}`;
+    return `${d.ddmm}, ${d.hora}`;
 }
 
 // Molda a entidade pro formato que o front (AlertsPage) já consome.

@@ -1,5 +1,7 @@
 export type Source = 'aneel' | 'ccee' | 'dou';
 export type Impact = 'alto' | 'medio' | 'baixo';
+// 'minhas' = só as normas das áreas/subáreas que a empresa monitora na Central de Alertas.
+export type Escopo = 'minhas' | 'todas';
 
 export interface Norm {
     id: string;
@@ -14,6 +16,8 @@ export interface Norm {
     deadline: string;
     deadlineAt?: string; // AAAA-MM-DD do próximo prazo
     changes: string[];
+    changeSources?: string[]; // trecho literal da norma que comprova cada mudança (mesma posição)
+    subareas?: string[]; // ex.: "Solar > Geração distribuída"
     why: string;
     url?: string;
 }
@@ -130,7 +134,7 @@ export interface Api {
     resetPassword(token: string, password: string): Promise<void>;
     getMe(): Promise<User>;
     updateProfile(patch: Partial<Pick<User, 'name' | 'role' | 'phone' | 'monthlyReportEnabled'>>): Promise<User>;
-    listNorms(source?: Source | 'todas'): Promise<Norm[]>;
+    listNorms(source?: Source | 'todas', escopo?: Escopo): Promise<Norm[]>;
     getNorm(id: string): Promise<Norm>;
     getPlant(): Promise<Plant>;
     updatePlant(patch: Partial<Plant>): Promise<Plant>;

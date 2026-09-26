@@ -1,11 +1,13 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ExtracaoService } from './extracao.service';
 import { CreateExtracaoDto } from './dto/create-extracao.dto';
+import { Interno } from '../ingestao/interno.decorator';
 
 @Controller('extracoes')
 export class ExtracaoController {
     constructor(private readonly extracaoService: ExtracaoService) {}
 
+    @Interno()
     @Post()
     async create(@Body() dto: CreateExtracaoDto) {
         return await this.extracaoService.create(dto);
@@ -21,6 +23,7 @@ export class ExtracaoController {
         return await this.extracaoService.getById(id);
     }
 
+    @Interno()
     @Delete(':id')
     async remove(@Param('id', ParseUUIDPipe) id: string) {
         await this.extracaoService.remove(id);

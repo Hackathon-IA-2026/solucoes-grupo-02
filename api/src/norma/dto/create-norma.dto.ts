@@ -29,6 +29,11 @@ export class CreateNormaDto {
     @IsOptional()
     changes?: string[];
 
+    @IsArray()
+    @IsString({ each: true })
+    @IsOptional()
+    changeSources?: string[];
+
     @IsString()
     @IsOptional()
     why?: string;

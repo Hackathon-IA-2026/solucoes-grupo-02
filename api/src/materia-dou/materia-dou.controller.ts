@@ -1,11 +1,13 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { MateriaDouService } from './materia-dou.service';
 import { CreateMateriaDouDto } from './dto/create-materia-dou.dto';
+import { Interno } from '../ingestao/interno.decorator';
 
 @Controller('materias-dou')
 export class MateriaDouController {
     constructor(private readonly materiaDouService: MateriaDouService) {}
 
+    @Interno()
     @Post()
     async create(@Body() dto: CreateMateriaDouDto) {
         return await this.materiaDouService.create(dto);
@@ -21,6 +23,7 @@ export class MateriaDouController {
         return await this.materiaDouService.getById(id);
     }
 
+    @Interno()
     @Delete(':id')
     async remove(@Param('id', ParseUUIDPipe) id: string) {
         await this.materiaDouService.remove(id);

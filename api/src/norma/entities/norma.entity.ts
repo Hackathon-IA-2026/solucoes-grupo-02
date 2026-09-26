@@ -30,6 +30,11 @@ export class NormaEntity extends BaseEntity {
     @Column({ type: 'text', array: true, default: '{}' })
     changes!: string[];
 
+    // Trecho literal da norma que comprova cada mudança (mesma posição de `changes`;
+    // '' quando não houver) — a rastreabilidade que a tela de Resumos mostra.
+    @Column({ name: 'change_sources', type: 'text', array: true, default: '{}' })
+    changeSources!: string[];
+
     // "Por que importa pra você": hoje é global por norma (simplificação de MVP).
     // O correto a médio prazo é isso vir personalizado por empresa, cruzando com
     // `limites`/`configuracoes` em vez de morar fixo aqui.

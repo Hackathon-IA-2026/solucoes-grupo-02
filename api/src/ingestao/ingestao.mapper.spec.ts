@@ -61,6 +61,22 @@ describe('mapearNorma', () => {
         expect(norma.changes).toEqual(['Prazo de compensação dos créditos. Antes: 60 meses. Agora: 48 meses.', 'Abertura da consulta.']);
     });
 
+    it('guarda o trecho literal de cada mudança na mesma posição', () => {
+        const { norma } = mapear({
+            ...linhaDoPipeline,
+            mudancas: [
+                { o_que_mudou: 'Prazo reduzido', antes: null, depois: null, trecho: 'o prazo passa a ser de 48 meses' },
+                { o_que_mudou: 'Sem trecho', antes: null, depois: null },
+            ],
+        });
+        expect(norma.changeSources).toEqual(['o prazo passa a ser de 48 meses', '']);
+    });
+
+    it('resume listas longas de afetados', () => {
+        const { norma } = mapear({ ...linhaDoPipeline, acao_necessaria: null, quem_e_afetado: ['A', 'B', 'C', 'D', 'E', 'F', 'G'] });
+        expect(norma.why).toBe('Quem é afetado: A, B, C, D, E e mais 2.');
+    });
+
     it('usa o próximo prazo ainda não vencido', () => {
         const { norma } = mapear(linhaDoPipeline);
         expect(norma.deadlineAt).toBe('2026-10-15');

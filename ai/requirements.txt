@@ -9,4 +9,4 @@ python-dotenv>=1.0     # lê a chave da API do arquivo .env, fora do código
 
 # Opcional — só para a comparação com o classificador zero-shot do Hugging Face (pesado, instala o PyTorch)
 # transformers>=4.40
-# torch>=2.2
+# torch>=2.2    

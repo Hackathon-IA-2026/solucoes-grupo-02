@@ -1,11 +1,13 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { TrechoService } from './trecho.service';
 import { CreateTrechoDto } from './dto/create-trecho.dto';
+import { Interno } from '../ingestao/interno.decorator';
 
 @Controller('trechos')
 export class TrechoController {
     constructor(private readonly trechoService: TrechoService) {}
 
+    @Interno()
     @Post()
     async create(@Body() dto: CreateTrechoDto) {
         return await this.trechoService.createTrecho(dto);
@@ -26,6 +28,7 @@ export class TrechoController {
         return await this.trechoService.getById(id);
     }
 
+    @Interno()
     @Delete(':id')
     async remove(@Param('id', ParseUUIDPipe) id: string) {
         await this.trechoService.remove(id);

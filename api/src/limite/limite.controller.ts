@@ -2,11 +2,13 @@ import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, 
 import { LimiteService } from './limite.service';
 import { CreateLimiteDto } from './dto/create-limite.dto';
 import { UpdateLimiteDto } from './dto/update-limite.dto';
+import { Interno } from '../ingestao/interno.decorator';
 
 @Controller('limites')
 export class LimiteController {
     constructor(private readonly limiteService: LimiteService) {}
 
+    @Interno()
     @Post()
     async create(@Body() dto: CreateLimiteDto) {
         return await this.limiteService.create(dto);
@@ -22,16 +24,19 @@ export class LimiteController {
         return await this.limiteService.getById(id);
     }
 
+    @Interno()
     @Put(':id')
     async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateLimiteDto) {
         return await this.limiteService.update(id, dto);
     }
 
+    @Interno()
     @Patch(':id/aprovar')
     async aprovar(@Param('id', ParseUUIDPipe) id: string) {
         return await this.limiteService.update(id, { status: 'aprovado_manual' });
     }
 
+    @Interno()
     @Delete(':id')
     async remove(@Param('id', ParseUUIDPipe) id: string) {
         await this.limiteService.remove(id);
