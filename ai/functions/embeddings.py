@@ -101,6 +101,9 @@ def texto_da_novidade(linha) -> str:
         partes.append(f"- {v.get('parametro')}: {v.get('valor')} {v.get('unidade') or ''}".rstrip())
     for p in _lista(linha.get("prazos")):
         partes.append(f"- Prazo ({p.get('tipo')}): {p.get('data')} — {p.get('descricao')}")
+    acao = str(linha.get("acao_necessaria") or "").strip()
+    if acao and acao.lower() not in ("none", "null", "nan"):
+        partes.append(f"O que fazer: {acao}")
     afetados = [str(a) for a in _lista(linha.get("quem_e_afetado"))]
     if afetados:
         extra = f" e mais {len(afetados) - 8}" if len(afetados) > 8 else ""

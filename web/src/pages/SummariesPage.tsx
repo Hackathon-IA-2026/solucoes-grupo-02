@@ -132,7 +132,7 @@ export function SummariesPage() {
               )}
 
               <div className="mt-6 flex flex-wrap gap-2.5 border-t border-line pt-[18px]">
-                <Button onClick={() => navigate(`/copiloto?q=${encodeURIComponent(`${norma.title} — o que eu preciso fazer e até quando?`)}`)}>
+                <Button onClick={() => navigate(`/copiloto?q=${encodeURIComponent(`${norma.title} — o que eu preciso fazer e até quando?`)}&norma=${norma.id}`)}>
                   Perguntar ao copiloto
                 </Button>
                 <Button variante="ghost" onClick={() => (norma.url ? window.open(norma.url, '_blank') : toast('O documento oficial abriria em nova aba.'))}>

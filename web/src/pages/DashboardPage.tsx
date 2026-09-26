@@ -63,7 +63,7 @@ export function DashboardPage() {
                 <Button
                   tamanho="sm"
                   variante="ghostOnNavy"
-                  onClick={() => navigate(`/copiloto?q=${encodeURIComponent(`${destaque.title} — o que preciso fazer e até quando?`)}`)}
+                  onClick={() => navigate(`/copiloto?q=${encodeURIComponent(`${destaque.title} — o que preciso fazer e até quando?`)}&norma=${destaque.id}`)}
                 >
                   Perguntar ao copiloto
                 </Button>

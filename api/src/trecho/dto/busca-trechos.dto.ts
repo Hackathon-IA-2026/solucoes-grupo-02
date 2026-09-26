@@ -1,4 +1,4 @@
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsInt, IsNumber, IsOptional, Matches, Max, Min } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsInt, IsNumber, IsOptional, IsUUID, Matches, Max, Min } from 'class-validator';
 
 export class BuscaTrechosDto {
     @IsArray()
@@ -26,6 +26,13 @@ export class BuscaTrechosDto {
     @Matches(/^\d{1,4}$/, { each: true })
     @IsOptional()
     artigos?: string[];
+
+    // Ids de normas cujos trechos entram como referência (a norma em foco na pergunta)
+    @IsArray()
+    @ArrayMaxSize(10)
+    @IsUUID('all', { each: true })
+    @IsOptional()
+    normaIds?: string[];
 
     // Só os trechos das normas citadas (o copiloto usa para trazer a canônica que uma novidade altera)
     @IsBoolean()

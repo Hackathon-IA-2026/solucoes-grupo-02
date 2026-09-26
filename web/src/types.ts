@@ -44,6 +44,9 @@ export interface Plant {
     frequency: string;
 }
 
+// Área -> subáreas que o classificador conhece (GET /plants/taxonomia).
+export type Taxonomia = Record<string, string[]>;
+
 // Usina do cadastro de agentes de geração da ANEEL (GET /plants/me/usinas-aneel).
 export interface UsinaAneel {
     ceg: string; // normalizado, como vai em Plant.cegs
@@ -64,6 +67,7 @@ export interface Noticia {
     url?: string;
     imageUrl?: string;
     setor?: string;
+    setores?: string[]; // áreas da taxonomia de que a notícia trata (Solar, Eólica, Armazenamento)
     date: string;
 }
 
@@ -154,17 +158,19 @@ export interface Api {
     listNorms(source?: Source | 'todas', escopo?: Escopo): Promise<Norm[]>;
     getNorm(id: string): Promise<Norm>;
     getPlant(): Promise<Plant>;
+    getTaxonomia(): Promise<Taxonomia>;
     updatePlant(patch: Partial<Plant>): Promise<Plant>;
     listUsinasAneel(cnpjs: string[]): Promise<UsinaAneel[]>; // cnpjs: SPEs ainda não salvas
     listAlerts(): Promise<Alert[]>;
     checkAlerts(): Promise<Alert[]>;
     markAlertRead(id: string): Promise<Alert>;
-    listNoticias(setor?: string): Promise<Noticia[]>;
+    listNoticias(setor?: string, escopo?: Escopo): Promise<Noticia[]>; // 'minhas' = áreas monitoradas pela empresa
     getNormPdf(id: string): Promise<Blob>;
     listChatSessions(): Promise<ChatSession[]>;
     createChatSession(): Promise<ChatSession>;
     listChatMessages(sessionId: string): Promise<ChatMessage[]>;
-    sendChatMessage(sessionId: string, question: string): Promise<CopilotAnswer>;
+    // normaId: a norma de que o usuário está falando (veio do botão dos Resumos/Painel)
+    sendChatMessage(sessionId: string, question: string, normaId?: string): Promise<CopilotAnswer>;
     listTeam(): Promise<TeamMember[]>;
     inviteMember(input: InviteInput): Promise<InviteResult>;
     renewInvite(id: string): Promise<InviteResult>;

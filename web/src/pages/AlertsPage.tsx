@@ -7,28 +7,21 @@ import { Button, CAMPO, Chip, LinkButton, PageHead, Panel, PanelTitle, ROTULO, S
 import { useToast } from '../hooks/useToast';
 import { normalizarCeg } from '../utils/ceg';
 import { cnpjValido, mascararCnpj } from '../utils/cnpj';
-import type { Alert, Plant } from '../types';
+import type { Alert, Plant, Taxonomia } from '../types';
 
-const AREAS = ['Eólica', 'Solar', 'Hidrelétrica', 'Biomassa', 'Térmica', 'Transmissão', 'Armazenamento'];
-// Os nomes precisam bater com a TAXONOMIA do classificador (ai/models/classfier.py) — é por
-// eles que o motor decide se uma norma nova gera alerta (ignorando acento e maiúsculas).
-const SUBAREAS = [
-  'Outorga e autorização',
-  'Conexão e acesso',
-  'Geração distribuída',
-  'Cortes de geração',
-  'Autorização de armazenamento',
-  'Conexão e faturamento de armazenamento',
-  'Tarifas e encargos',
-  'Leilões',
-  'Licenciamento ambiental',
-  'Medição e faturamento',
-];
 const FREQUENCIAS = ['Imediato', 'Resumo diário', 'Resumo semanal'];
 const SUBMERCADOS = ['Nordeste', 'Sudeste/Centro-Oeste', 'Sul', 'Norte'];
 const AMBIENTES = ['Livre (ACL)', 'Regulado (ACR)', 'Ambos'];
 
 const SEV: Record<string, string> = { alto: 'bg-danger', medio: 'bg-accent', baixo: 'bg-brand' };
+
+// A tela só oferece o que o classificador conhece (GET /plants/taxonomia). Áreas e subáreas de
+// versões antigas da tela (Hidrelétrica, Tarifas e encargos...) nunca casariam com uma norma:
+// saem do formulário e, no próximo "Salvar", do banco.
+function somenteDaTaxonomia(plant: Plant, taxonomia: Taxonomia): Plant {
+  const subareas = Object.values(taxonomia).flat();
+  return { ...plant, areas: plant.areas.filter((a) => a in taxonomia), subareas: plant.subareas.filter((s) => subareas.includes(s)) };
+}
 
 export function AlertsPage() {
   const toast = useToast();
@@ -36,11 +29,12 @@ export function AlertsPage() {
   const navigate = useNavigate();
   const { data } = useQuery({ queryKey: ['plant'], queryFn: api.getPlant });
   const { data: alertas = [] } = useQuery({ queryKey: ['alerts'], queryFn: api.listAlerts });
+  const { data: taxonomia } = useQuery({ queryKey: ['taxonomia'], queryFn: api.getTaxonomia, staleTime: Infinity });
   const [form, setForm] = useState<Plant | null>(null);
 
   useEffect(() => {
-    if (data && !form) setForm(data);
-  }, [data, form]);
+    if (data && taxonomia && !form) setForm(somenteDaTaxonomia(data, taxonomia));
+  }, [data, taxonomia, form]);
 
   const salvar = useMutation({
     mutationFn: async (p: Partial<Plant>) => {
@@ -81,10 +75,20 @@ export function AlertsPage() {
     if (a.normId) navigate(`/resumos?norma=${a.normId}`);
   };
 
-  if (!form) return <section className={TELA}>Carregando…</section>;
+  if (!form || !taxonomia) return <section className={TELA}>Carregando…</section>;
 
   const alterna = (campo: 'areas' | 'subareas' | 'cegs' | 'cnpjs', valor: string) =>
     setForm({ ...form, [campo]: form[campo].includes(valor) ? form[campo].filter((v) => v !== valor) : [...form[campo], valor] });
+
+  // Desmarcar uma área leva junto as subáreas dela.
+  const alternaArea = (area: string) => {
+    const marcada = form.areas.includes(area);
+    setForm({
+      ...form,
+      areas: marcada ? form.areas.filter((a) => a !== area) : [...form.areas, area],
+      subareas: marcada ? form.subareas.filter((s) => !taxonomia[area].includes(s)) : form.subareas,
+    });
+  };
 
   // Só dígitos e pontuação = CNPJ de uma SPE; o resto tem que ser um CEG.
   const adicionarId = () => {
@@ -125,10 +129,13 @@ export function AlertsPage() {
       <div className="grid items-start gap-[18px] lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <Panel>
           <div className="mb-[22px]">
-            <PanelTitle titulo="Áreas monitoradas" hint="Selecione as fontes de geração que a sua empresa opera." />
+            <PanelTitle
+              titulo="Áreas monitoradas"
+              hint="Selecione as fontes que a sua empresa opera. Por enquanto, o radar de normas cobre estas três."
+            />
             <div className="mt-3 flex flex-wrap gap-[7px]">
-              {AREAS.map((a) => (
-                <Chip key={a} ativo={form.areas.includes(a)} onClick={() => alterna('areas', a)}>
+              {Object.keys(taxonomia).map((a) => (
+                <Chip key={a} ativo={form.areas.includes(a)} onClick={() => alternaArea(a)}>
                   {a}
                 </Chip>
               ))}
@@ -136,14 +143,22 @@ export function AlertsPage() {
           </div>
 
           <div className="mb-[22px]">
-            <PanelTitle titulo="Subáreas" hint="Recorta o volume de publicações para o que realmente afeta o seu time." />
-            <div className="mt-3 flex flex-wrap gap-[7px]">
-              {SUBAREAS.map((s) => (
-                <Chip key={s} ativo={form.subareas.includes(s)} onClick={() => alterna('subareas', s)}>
-                  {s}
-                </Chip>
+            <PanelTitle titulo="Subáreas" hint="Recortam cada área para o que afeta o seu time. Área sem subárea marcada vale inteira." />
+            {form.areas.length === 0 && <p className="mt-3 text-[13px] text-ink-2">Marque uma área para escolher as subáreas dela.</p>}
+            {Object.keys(taxonomia)
+              .filter((a) => form.areas.includes(a))
+              .map((a) => (
+                <div key={a} className="mt-3">
+                  <span className={ROTULO}>{a}</span>
+                  <div className="flex flex-wrap gap-[7px]">
+                    {taxonomia[a].map((s) => (
+                      <Chip key={s} ativo={form.subareas.includes(s)} onClick={() => alterna('subareas', s)}>
+                        {s}
+                      </Chip>
+                    ))}
+                  </div>
+                </div>
               ))}
-            </div>
           </div>
 
           <div className="mb-[22px]">

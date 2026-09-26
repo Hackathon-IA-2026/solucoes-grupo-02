@@ -18,7 +18,7 @@ export class TrechoInternoController {
     @Post('busca')
     @HttpCode(200)
     async buscar(@Body() dto: BuscaTrechosDto) {
-        const normaIds = dto.numeros?.length ? await this.normaService.findIdsByNumeros(dto.numeros) : [];
+        const normaIds = [...(dto.normaIds ?? []), ...(dto.numeros?.length ? await this.normaService.findIdsByNumeros(dto.numeros) : [])];
         const semelhantes = await this.trechoService.buscarSemelhantes(dto.vetor, dto.limite ?? 10, {
             normaIds,
             artigos: dto.artigos,

@@ -23,6 +23,11 @@ export class NoticiaEntity extends BaseEntity {
     @Column({ nullable: true })
     setor?: string;
 
+    // Áreas da taxonomia (Solar, Eólica, Armazenamento) de que a notícia trata — a coleta
+    // automática (coletor.service.ts) marca todas; `setor` fica com a primeira.
+    @Column({ type: 'text', array: true, default: '{}' })
+    setores!: string[];
+
     @Column({ name: 'publicado_em', type: 'date', nullable: true })
     publicadoEm?: string;
 }

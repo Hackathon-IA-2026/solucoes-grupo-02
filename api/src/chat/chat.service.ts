@@ -29,7 +29,7 @@ export class ChatService {
         return await this.messageRepo.find({ where: { sessionId }, order: { createdAt: 'ASC' } });
     }
 
-    async ask(userId: string, companyId: string, sessionId: string, question: string) {
+    async ask(userId: string, companyId: string, sessionId: string, question: string, normaId?: string) {
         const session = await this.getSessionOrFail(userId, sessionId);
 
         // As últimas mensagens da conversa vão junto: "e se for acima de 500 kW?" só faz
@@ -46,7 +46,7 @@ export class ChatService {
 
         await this.messageRepo.save(this.messageRepo.create({ sessionId: session.id, autor: 'user', texto: question, citacoes: [] }));
 
-        const resposta = await this.copilotService.ask(question, companyId, historico);
+        const resposta = await this.copilotService.ask(question, companyId, historico, normaId);
 
         await this.messageRepo.save(
             this.messageRepo.create({ sessionId: session.id, autor: 'bot', texto: resposta.answer, citacoes: resposta.citations }),

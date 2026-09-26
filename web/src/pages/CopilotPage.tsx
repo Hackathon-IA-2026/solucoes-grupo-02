@@ -31,11 +31,16 @@ export function CopilotPage() {
   const qc = useQueryClient();
 
   const [sessaoId, setSessaoId] = useState<string | null>(null);
+  // A norma de onde o usuário veio (botão dos Resumos/Painel): vai junto em toda pergunta desta conversa.
+  const [normaFoco, setNormaFoco] = useState<string | null>(null);
   const [pendente, setPendente] = useState<Mensagem[]>([]);
   const [texto, setTexto] = useState('');
   const [abertas, setAbertas] = useState<Record<string, boolean>>({});
   const logRef = useRef<HTMLDivElement>(null);
+  // O StrictMode (dev) roda o efeito da pergunta inicial duas vezes: sem isso, ela ia duas vezes ao copiloto.
+  const perguntaInicialFeita = useRef<string | null>(null);
   const perguntaInicial = params.get('q');
+  const normaInicial = params.get('norma');
 
   const { data: sessoes = [] } = useQuery({ queryKey: ['chat-sessions'], queryFn: api.listChatSessions });
   const { data: mensagensSalvas = [] } = useQuery({
@@ -45,14 +50,14 @@ export function CopilotPage() {
   });
 
   const enviarMutation = useMutation({
-    mutationFn: async (pergunta: string) => {
+    mutationFn: async ({ pergunta, normaId }: { pergunta: string; normaId: string | null }) => {
       let sid = sessaoId;
       if (!sid) {
         const nova = await api.createChatSession();
         sid = nova.id;
         setSessaoId(sid);
       }
-      await api.sendChatMessage(sid, pergunta);
+      await api.sendChatMessage(sid, pergunta, normaId ?? undefined);
       return sid;
     },
     onSuccess: async (sid) => {
@@ -80,17 +85,24 @@ export function CopilotPage() {
   }, [mensagensExibidas.length, enviarMutation.isPending]);
 
   useEffect(() => {
-    if (!perguntaInicial) return;
+    if (!perguntaInicial || perguntaInicialFeita.current === perguntaInicial) return;
+    perguntaInicialFeita.current = perguntaInicial;
     setParams({}, { replace: true });
-    void perguntar(perguntaInicial);
+    setNormaFoco(normaInicial);
+    void perguntar(perguntaInicial, normaInicial);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [perguntaInicial]);
 
-  async function perguntar(pergunta: string) {
+  async function perguntar(pergunta: string, normaId = normaFoco) {
     const limpa = pergunta.trim();
     if (!limpa || enviarMutation.isPending) return;
     setPendente((p) => [...p, { id: `local-${Date.now()}`, autor: 'user', html: limpa }]);
-    enviarMutation.mutate(limpa);
+    enviarMutation.mutate({ pergunta: limpa, normaId });
+  }
+
+  function abrirConversa(id: string | null) {
+    setSessaoId(id);
+    setNormaFoco(null);
   }
 
   function enviar() {
@@ -106,7 +118,7 @@ export function CopilotPage() {
         <div className="order-2 rounded-lg border border-line bg-surface p-3.5 lg:order-1">
           <div className="mb-2.5 flex items-center justify-between">
             <h3 className="text-[13px] font-bold text-ink-2">Conversas</h3>
-            <button onClick={() => setSessaoId(null)} className="text-[12.5px] font-semibold text-brand hover:underline">
+            <button onClick={() => abrirConversa(null)} className="text-[12.5px] font-semibold text-brand hover:underline">
               + Nova
             </button>
           </div>
@@ -115,7 +127,7 @@ export function CopilotPage() {
             <button
               key={s.id}
               aria-current={s.id === sessaoId}
-              onClick={() => setSessaoId(s.id)}
+              onClick={() => abrirConversa(s.id)}
               className="block w-full rounded-md px-2.5 py-[9px] text-left text-[13.4px] text-ink-2 hover:bg-surface-2 aria-[current=true]:bg-surface-2 aria-[current=true]:font-semibold aria-[current=true]:text-ink"
             >
               {s.titulo}

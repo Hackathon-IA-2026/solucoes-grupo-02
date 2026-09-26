@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TrechoService } from '../trecho/trecho.service';
 import { NormaService } from '../norma/norma.service';
+import { catalogoParaOCopiloto } from './catalogo';
 import { PlantService, toPlantResponse } from '../plant/plant.service';
 import { escapeHtml } from '../utils/texto';
 
@@ -73,24 +74,34 @@ export class CopilotService {
         private readonly config: ConfigService,
     ) {}
 
-    async ask(question: string, companyId: string, historico: TurnoDaConversa[] = []): Promise<CopilotAnswer> {
-        return (await this.perguntarAoServicoDeIa(question, companyId, historico)) ?? (await this.buscarPorPalavraChave(question));
+    async ask(question: string, companyId: string, historico: TurnoDaConversa[] = [], normaId?: string): Promise<CopilotAnswer> {
+        return (await this.perguntarAoServicoDeIa(question, companyId, historico, normaId)) ?? (await this.buscarPorPalavraChave(question));
     }
 
     // Com AI_SERVICE_URL no .env, a pergunta vai pro microsserviço Python de RAG junto
     // com o perfil da usina (o "Envia perfil do cliente e dúvida" do diagrama).
-    // Contrato: POST {AI_SERVICE_URL}/ask {question, perfil, historico} -> {answer, citations} (ai/servidor.py),
+    // Contrato: POST {AI_SERVICE_URL}/ask {question, perfil, historico, normaId?, novidades, canonicas}
+    // -> {answer, citations} (ai/servidor.py), com `novidades` = catalogoParaOCopiloto (o feed da empresa),
     // com a mesma chave interna das rotas /interno — cada pergunta gasta chamadas de LLM.
     // Se o serviço não estiver configurado ou falhar, cai na busca por palavra-chave.
-    private async perguntarAoServicoDeIa(question: string, companyId: string, historico: TurnoDaConversa[]): Promise<CopilotAnswer | null> {
+    private async perguntarAoServicoDeIa(
+        question: string,
+        companyId: string,
+        historico: TurnoDaConversa[],
+        normaId?: string,
+    ): Promise<CopilotAnswer | null> {
         const base = this.config.get<string>('AI_SERVICE_URL');
         if (!base) return null;
         try {
-            const perfil = toPlantResponse(await this.plantService.getPlant(companyId));
+            const plant = await this.plantService.getPlant(companyId);
+            // a norma em foco pode estar fora das áreas monitoradas (aberta por um alerta ou link)
+            const emFoco = normaId ? await this.normaService.getById(normaId).catch(() => null) : null;
+            const novidades = catalogoParaOCopiloto(await this.normaService.list(plant), emFoco);
+            const canonicas = (await this.normaService.listCanonicas()).map((n) => ({ code: n.code ?? n.title, title: n.title, url: n.url ?? null }));
             const res = await fetch(`${base.replace(/\/+$/, '')}/ask`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-internal-key': this.config.get<string>('INTERNAL_API_KEY', '') },
-                body: JSON.stringify({ question, perfil, historico }),
+                body: JSON.stringify({ question, perfil: toPlantResponse(plant), historico, normaId: emFoco?.id ?? null, novidades, canonicas }),
                 signal: AbortSignal.timeout(180_000), // a API gratuita da NVIDIA leva de 20 a 50s por resposta; a busca externa faz 2 chamadas
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);

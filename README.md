@@ -17,7 +17,7 @@ coleta do DOU ──▶ classificador ──▶ resumidor ──POST /interno/in
 
 - **Ingestão** ([ai/](ai/)): coleta as publicações do dia no DOU, classifica cada uma por área e subárea (Solar, Eólica, Armazenamento…) e como ato geral ou individual, e extrai, com trechos conferidos contra o texto original, o que mudou, os prazos e quem é afetado. Ato individual (despacho que libera, transfere ou multa uma usina — a maior parte do DOU) só segue se citar um cliente pelo CNPJ ou pelo CEG da usina.
 - **API** ([api/](api/)): recebe esse resultado, guarda as normas quebradas em trechos por artigo e dispara os alertas: norma nova numa área que a usina monitora, publicação que cita a empresa, ou limite regulatório que os dados da usina não cumprem. Os e-mails saem na hora ou em resumo diário ou semanal, conforme o perfil. Os endpoints estão em [api/ENDPOINTS.md](api/ENDPOINTS.md).
-- **Web** ([web/](web/)): painel, resumos (com PDF e link para o documento original), central de alertas, notícias e o copiloto.
+- **Web** ([web/](web/)): painel, resumos (com PDF e link para o documento original), central de alertas, notícias do setor (coletadas pela API a cada 3 horas de ABSOLAR, ABEEólica, PV Magazine Brasil, MegaWhat, ANEEL e MME, filtradas pelas áreas da empresa) e o copiloto.
 
 ## Tecnologias utilizadas
 

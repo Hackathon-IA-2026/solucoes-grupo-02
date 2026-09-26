@@ -34,6 +34,10 @@ export const api: Api = {
         const { data } = await client.get('/plants/me');
         return data;
     },
+    getTaxonomia: async () => {
+        const { data } = await client.get('/plants/taxonomia');
+        return data;
+    },
     updatePlant: async (patch) => {
         const { data } = await client.put('/plants/me', patch);
         return data;
@@ -54,8 +58,11 @@ export const api: Api = {
         const { data } = await client.patch(`/alerts/${id}/read`);
         return data;
     },
-    listNoticias: async (setor) => {
-        const { data } = await client.get(`/noticias${setor ? `?setor=${encodeURIComponent(setor)}` : ''}`);
+    listNoticias: async (setor, escopo) => {
+        const params: Record<string, string> = {};
+        if (setor) params.setor = setor;
+        if (escopo) params.escopo = escopo;
+        const { data } = await client.get('/noticias', { params });
         return data;
     },
     getNormPdf: async (id) => {
@@ -74,8 +81,8 @@ export const api: Api = {
         const { data } = await client.get(`/chat/${sessionId}/messages`);
         return data;
     },
-    sendChatMessage: async (sessionId, question) => {
-        const { data } = await client.post(`/chat/${sessionId}/message`, { question });
+    sendChatMessage: async (sessionId, question, normaId) => {
+        const { data } = await client.post(`/chat/${sessionId}/message`, { question, ...(normaId ? { normaId } : {}) });
         return data;
     },
     listTeam: async () => {

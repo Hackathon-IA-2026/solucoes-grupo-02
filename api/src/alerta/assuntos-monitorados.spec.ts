@@ -18,6 +18,20 @@ describe('assuntosMonitorados', () => {
         expect(assuntosMonitorados(norma, { areas: ['Solar'], subareas: ['Conexão e acesso'] })).toEqual([]);
     });
 
+    it('subárea marcada de uma área não recorta a outra', () => {
+        expect(assuntosMonitorados(norma, { areas: ['Solar', 'Eólica'], subareas: ['Cortes de geração'] })).toEqual([
+            'Solar › Geração distribuída',
+            'Eólica › Cortes de geração',
+        ]);
+        expect(assuntosMonitorados(norma, { areas: ['Solar', 'Eólica'], subareas: ['Outorga e autorização'] })).toEqual([
+            'Solar › Geração distribuída',
+        ]);
+    });
+
+    it('subárea fora da taxonomia (da tela antiga) não recorta nada', () => {
+        expect(assuntosMonitorados(norma, { areas: ['Solar'], subareas: ['Tarifas e encargos'] })).toEqual(['Solar › Geração distribuída']);
+    });
+
     it('sem área marcada, nada casa', () => {
         expect(assuntosMonitorados(norma, { areas: [], subareas: ['Geração distribuída'] })).toEqual([]);
     });

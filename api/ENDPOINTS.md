@@ -15,6 +15,7 @@
 
 > Uma configuração por empresa (criada no cadastro). `me` é a usina da empresa de quem está logado.
 
+- GET /plants/taxonomia - As áreas e subáreas que a Central de Alertas oferece: `{ "Solar": ["Geração distribuída", "Conexão e acesso"], ... }`. São as mesmas da `TAXONOMIA` do classificador (`ai/models/classifier.py`; o `taxonomia.spec.ts` confere): área ou subárea fora dela nunca casaria com uma norma.
 - GET /plants/me - Pega os dados técnicos da usina (fonte, potência, submercado, CO2, disponibilidade, áreas/subáreas monitoradas, `cegs` e `cnpjs`, canais e frequência de notificação).
 - PUT /plants/me - Atualiza esses dados (o que recalibra o motor de alertas). `cegs` são os códigos das usinas na ANEEL (ex.: `EOL.CV.RN.007663-4.01`) e `cnpjs` os das SPEs donas delas; é por eles, e pelo CNPJ da empresa, que um ato individual chega à empresa. A API guarda o CEG sem dígito e versão (`EOL.CV.RN.007663`, o formato que o pipeline extrai do DOU) e o CNPJ só com dígitos; CEG ou CNPJ inválido responde 400.
 - GET /plants/me/usinas-aneel?cnpjs= - Usinas em que o CNPJ da empresa, das SPEs salvas e dos `cnpjs` informados (separados por vírgula, para SPEs ainda não salvas) tem participação, segundo o cadastro de agentes de geração dos dados abertos da ANEEL: `[{ ceg, codigoCeg, nome, tipo, fase, cnpj, agente, participacaoPct }]`. A API baixa o CSV (~4,5 MB) na primeira consulta e guarda por um dia; sem acesso à ANEEL, responde 503.
@@ -54,7 +55,7 @@ Todas respondem 403 para quem não é admin e 404 para usuário de outra empresa
 Tipos de alerta (`tipo` na resposta, junto com `normId` e `lido`):
 
 - `limite_excedido` - um `limite` extraído de uma norma não é cumprido pelos dados da usina.
-- `norma_nova` - a ingestão trouxe um ato geral cuja área/subárea (do classificador) está entre as `areas`/`subareas` monitoradas em `/plants/me`. Sem subárea marcada, casa só pela área; sem área marcada, não gera alerta. A comparação ignora acento e maiúsculas.
+- `norma_nova` - a ingestão trouxe um ato geral cuja área/subárea (do classificador) está entre as `areas`/`subareas` monitoradas em `/plants/me`. Cada área vale inteira até que se marque uma subárea dela (marcar "Cortes de geração" recorta Eólica e não mexe em Solar); subárea que não é de nenhuma área da taxonomia é ignorada; sem área marcada, não gera alerta. A comparação ignora acento e maiúsculas.
 - `ato_da_empresa` - a ingestão trouxe uma publicação que cita a empresa: o CNPJ dela ou de uma SPE em `cnpjs` (pela raiz: matriz e filiais) ou o CEG de uma usina em `cegs`. Vale mesmo fora das áreas monitoradas. É o único jeito de um ato individual (despacho que libera, transfere ou multa uma usina) gerar alerta.
 
 E-mail: com `frequency = "Imediato"` o e-mail sai na hora. Com `"Resumo diário"` ou `"Resumo semanal"`, os alertas ficam para o cron (`AlertDigestService`: todo dia às 8h / segunda às 8h, horário de Brasília), que manda um e-mail só com os alertas do período.
@@ -66,9 +67,9 @@ E-mail: com `frequency = "Imediato"` o e-mail sai na hora. Com `"Resumo diário"
 - POST /chat - Cria uma nova sessão de conversa.
 - GET /chat - Lista as conversas do usuário logado (mais recente primeiro).
 - GET /chat/:sessionId/messages - Carrega as mensagens de um chat específico.
-- POST /chat/:sessionId/message - Salva a pergunta, gera a resposta e salva a resposta, devolve pro front.
+- POST /chat/:sessionId/message - `{ question, normaId? }`: salva a pergunta, gera a resposta e salva a resposta, devolve pro front. `normaId` é a norma de que o usuário está falando (o botão "perguntar ao copiloto" dos Resumos e do Painel manda); o copiloto usa os trechos e o resumo dela mesmo que a pergunta não diga o número.
 
-> Com `AI_SERVICE_URL` no `.env`, a pergunta vai para o copiloto (`ai/servidor.py` + `ai/models/copiloto.py`): `POST {AI_SERVICE_URL}/ask` com o header `x-internal-key` e `{ "question": "...", "perfil": { ...GET /plants/me }, "historico": [{ "role": "user"|"assistant", "content": "..." }] }` (as 6 últimas mensagens da conversa), esperando `{ "answer": "texto com [n]", "citations": [{ "label": "[1] Lei nº 14.300/2022, Art. 26", "excerpt": "trecho", "normId": "uuid?", "url": "link oficial" }] }`. A API converte `answer` em HTML escapado (o LLM lê texto externo e não pode injetar HTML no front) e só repassa links `http(s)`.
+> Com `AI_SERVICE_URL` no `.env`, a pergunta vai para o copiloto (`ai/servidor.py` + `ai/models/copiloto.py`): `POST {AI_SERVICE_URL}/ask` com o header `x-internal-key` e `{ "question": "...", "perfil": { ...GET /plants/me }, "historico": [{ "role": "user"|"assistant", "content": "..." }], "normaId": "uuid"|null, "novidades": [...], "canonicas": [{ "code", "title", "url" }] }` (`historico` = as 6 últimas mensagens da conversa; `novidades` = o catálogo do feed da empresa — a norma em foco, as com prazo aberto e as mais recentes, até 25, cada uma com resumo, mudanças, próximo prazo e "o que fazer" —, que é o que deixa o copiloto responder "quais prazos vencem este mês?" ou "quais normas vocês têm?"), esperando `{ "answer": "texto com [n]", "citations": [{ "label": "[1] Lei nº 14.300/2022, Art. 26", "excerpt": "trecho", "normId": "uuid?", "url": "link oficial" }] }`. A API converte `answer` em HTML escapado (o LLM lê texto externo e não pode injetar HTML no front) e só repassa links `http(s)`.
 >
 > Fluxo do copiloto (uma busca só):
 > 1. vetoriza a pergunta (`nvidia/nemotron-3-embed-1b`, 1024 dimensões) e chama `POST /interno/trechos/busca`: normas canônicas e novidades juntas, mais os trechos das normas e artigos citados na pergunta ("art. 26 da Lei 14.300");
@@ -77,6 +78,15 @@ E-mail: com `frequency = "Imediato"` o e-mail sai na hora. Com `"Resumo diário"
 > 4. a resposta cita cada afirmação com [n]; `citations` traz só as fontes usadas, com trecho e link.
 >
 > Sem `AI_SERVICE_URL`, ou se o serviço falhar, a resposta é a busca por palavra-chave nos `trechos` (`TrechoService.searchByText`, ignorando acentos).
+
+## Notícias do setor (/noticias)
+
+A API coleta sozinha, a cada 3 horas e quando sobe, as notícias de fontes especializadas — ABSOLAR, ABEEólica, PV Magazine Brasil, MegaWhat (RSS) e ANEEL e MME (listagem do gov.br) — e guarda só as que tratam de Solar, Eólica ou Armazenamento (`setores`, por palavra-chave; as associações contam sempre para a sua fonte). As fontes e as palavras ficam em `src/noticia/coleta.ts`.
+
+- GET /noticias?escopo=&setor= - As mais recentes (até 60). Padrão: só as das áreas monitoradas pela empresa (sem área marcada, todas); `escopo=todas` ignora as áreas; `setor` filtra por uma área. Cada uma com `setores`.
+- GET /noticias/:id - Uma notícia.
+- POST /noticias/coletar - (interna) Roda a coleta agora: `{ novas, porFonte: { "ANEEL": { lidas, daTaxonomia, novas, erro? } } }`. Não duplica (compara o link).
+- POST /noticias, DELETE /noticias/:id - (internas) Cria ou apaga uma à mão.
 
 ## Health
 
@@ -136,7 +146,7 @@ Raízes de CNPJ (8 dígitos) e CEGs de todos os clientes: `{ "raizesCnpj": ["185
 
 ### POST /interno/trechos/busca
 
-Busca vetorial do copiloto: `{ "vetor": [...], "limite?": 20, "numeros?": ["14300"], "artigos?": ["26"], "somenteReferencias?": false }`. Devolve os trechos mais parecidos (canônicas e novidades juntas) e, se `numeros` vier, os mais parecidos de cada norma citada e os dos `artigos` citados, cada um com `similaridade` e a norma (`id`, `code`, `title`, `numero`, `url`, `source`, `publishedAt`, `canonica`).
+Busca vetorial do copiloto: `{ "vetor": [...], "limite?": 20, "numeros?": ["14300"], "normaIds?": ["uuid"], "artigos?": ["26"], "somenteReferencias?": false }`. Devolve os trechos mais parecidos (canônicas e novidades juntas) e, se `numeros` ou `normaIds` vierem, os mais parecidos de cada norma citada e os dos `artigos` citados, cada um com `similaridade` e a norma (`id`, `code`, `title`, `numero`, `url`, `source`, `publishedAt`, `canonica`).
 
 ### Planejadas (ainda não implementadas)
 

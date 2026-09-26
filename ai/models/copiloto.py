@@ -4,10 +4,12 @@
 # Responde perguntas do usuário sobre regulação do setor elétrico.
 #
 # FLUXO (uma busca só, não cascata):
-#   1. Recupera pedaços de normas canônicas E de novidades na MESMA busca
+#   1. Recupera pedaços de normas canônicas E de novidades na MESMA busca (e, se o usuário
+#      veio de uma norma, os trechos dela)
 #   2. Ranqueia dando peso maior para novidade recente (ela altera a canônica)
-#   3. Se nada passa do limiar mínimo -> busca externa
-#   4. LLM responde citando trecho + link de cada afirmação
+#   3. Junta o catálogo que a API manda: o resumo, o prazo e o "o que fazer" das novidades do
+#      feed da empresa e a lista das normas-base — é o que responde "quais prazos vencem?"
+#   4. LLM responde citando trecho + link de cada afirmação; se nada responde -> busca externa
 #
 # Os vetores ficam na API (tabela de trechos); a busca é POST /interno/trechos/busca.
 # ============================================================
@@ -91,15 +93,17 @@ def _artigo_corresponde(rotulo: str | None, artigo: str) -> bool:
 # ------------------------------------------------------------
 # 1. Recuperação: canônicas e novidades na mesma busca
 # ------------------------------------------------------------
-def recuperar(vetor: list[float], numeros=(), artigos=(), somente_referencias=False) -> list[dict]:
+def recuperar(vetor: list[float], numeros=(), artigos=(), somente_referencias=False, norma_ids=()) -> list[dict]:
     """A API compara o vetor da pergunta com todos os trechos da base (normas canônicas e
-    novidades juntas) e devolve os mais parecidos — mais os das normas e artigos citados."""
+    novidades juntas) e devolve os mais parecidos — mais os das normas e artigos citados
+    (pelo número, ou pelo id em `norma_ids`)."""
     r = requests.post(
         f"{API_URL}/interno/trechos/busca",
         json={
             "vetor": vetor,
             "limite": CANDIDATOS,
             "numeros": list(numeros),
+            "normaIds": list(norma_ids),
             "artigos": list(artigos),
             "somenteReferencias": somente_referencias,
         },
@@ -157,6 +161,48 @@ def puxar_canonica_relacionada(fontes: list[dict], vetor: list[float]) -> list[d
         f for f in recuperar(vetor, numeros=citadas, somente_referencias=True) if f["norma"].get("canonica") and f.get("id") not in ja_tem
     ]
     return sorted(relacionadas, key=lambda f: f["similaridade"], reverse=True)[:CANONICA_RELACIONADA]
+
+
+# ------------------------------------------------------------
+# 2b. Catálogo que a API manda: o feed da empresa e as normas-base
+# ------------------------------------------------------------
+def fontes_do_catalogo(novidades: list[dict]) -> list[dict]:
+    """Uma fonte por novidade do feed da empresa, com o que o resumidor já extraiu: resumo, o que
+    muda, próximo prazo, o que fazer e quem é afetado. A norma em foco (o usuário veio dela) vem
+    primeiro, da API."""
+    fontes = []
+    for n in novidades:
+        partes = [n.get("lead") or n.get("title") or ""]
+        partes += [f"- {c}" for c in (n.get("changes") or [])[:6]]
+        partes.append(f"Próximo prazo: {n['deadline']}" if n.get("deadline") else "Próximo prazo: nenhum prazo em aberto extraído do ato")
+        if n.get("why"):
+            partes.append(n["why"])  # "O que fazer: ... Quem é afetado: ..."
+        if n.get("subareas"):
+            partes.append("Assunto: " + "; ".join(n["subareas"]))
+        norma = {
+            "id": n.get("id"),
+            "code": n.get("code") or n.get("title"),
+            "title": n.get("title"),
+            "numero": None,
+            "url": n.get("url"),
+            "source": "dou",
+            "publishedAt": n.get("publishedAt"),
+            "canonica": False,
+        }
+        fontes.append(
+            {"artigo": "resumo", "texto": "\n".join(p for p in partes if p), "norma": norma, "similaridade": 0.0, "bonus": 0.0,
+             "externa": False, "catalogo": True, "foco": bool(n.get("emFoco"))}
+        )
+    return fontes
+
+
+def fonte_das_canonicas(canonicas: list[dict]) -> list[dict]:
+    """A lista das normas-base (em vigor) que a base tem, para perguntas sobre a própria base."""
+    if not canonicas:
+        return []
+    texto = "\n".join(f"- {c.get('code')}: {c.get('title')}" for c in canonicas)
+    norma = {"id": None, "code": "Normas-base do Energy Start", "title": None, "numero": None, "url": None, "canonica": True}
+    return [{"artigo": None, "texto": texto, "norma": norma, "similaridade": 0.0, "bonus": 0.0, "externa": False, "lista_base": True}]
 
 
 # ------------------------------------------------------------
@@ -271,18 +317,41 @@ def buscar_no_dou(pergunta: str, vetor: list[float]) -> list[dict]:
 PROMPT_COPILOTO = """Você é o copiloto regulatório do Energy Start, para donos e operadores de usinas
 solares, eólicas e de armazenamento no Brasil.
 
+As FONTES, numeradas na última mensagem, são de três tipos:
+- TRECHO de norma: texto literal de uma NORMA BASE (em vigor) ou de uma NOVIDADE publicada no DOU.
+- RESUMO de novidade do feed da empresa: o que o Energy Start extraiu do ato — resumo, o que muda,
+  próximo prazo, o que fazer e quem é afetado. Uma delas pode vir marcada como NORMA EM FOCO: é a
+  norma de que o usuário está falando, mesmo que a pergunta não diga o número.
+- LISTA DAS NORMAS BASE que a base tem.
+
 REGRAS:
-1. Responda SOMENTE com base nas FONTES numeradas da última mensagem. Nunca complete com conhecimento próprio.
+1. Responda SOMENTE com base nas FONTES. Nunca complete com conhecimento próprio.
 2. Toda afirmação termina com a fonte no formato [n], onde n é o número da fonte.
-3. Fontes "NOVIDADE" são publicações recentes. Se uma novidade contradiz ou altera uma "NORMA BASE",
-   a NOVIDADE prevalece: diga explicitamente o que mudou e desde quando.
-4. Se NENHUMA fonte responde à pergunta, responda exatamente e somente: SEM_RESPOSTA
+3. Se uma NOVIDADE contradiz ou altera uma NORMA BASE, a NOVIDADE prevalece: diga o que mudou e desde quando.
+4. Pergunta sobre o que fazer ou até quando: se as fontes mostram o ato e ele não exige ação ou não
+   fixa prazo, isso É a resposta — diga o que o ato faz e que ele não traz ação ou prazo [n].
+5. Pergunta sobre a própria base: "quais normas vocês têm" -> liste as normas-base (LISTA DAS NORMAS
+   BASE) e as novidades do feed (RESUMOS); "o que saiu de novo" -> os RESUMOS, dos mais recentes;
+   "quais prazos vencem" -> os próximos prazos dos RESUMOS, comparados com HOJE (só entra "este mês"
+   o prazo do mesmo mês e ano de HOJE; se não houver, diga isso e cite o próximo prazo).
+6. Se NENHUMA fonte trata do assunto da pergunta, responda exatamente e somente: SEM_RESPOSTA
    (sem citar fontes). Se responderem só em parte, responda a parte e diga o que ficou sem resposta.
-5. Números, percentuais, prazos e datas: copie exatamente como estão na fonte.
-6. Só fale da usina do usuário (PERFIL DA USINA) se a pergunta for sobre ela. Nunca conclua que a usina
+7. Números, percentuais, prazos e datas: copie exatamente como estão na fonte. Havendo TRECHO e
+   RESUMO do mesmo ato, prefira o TRECHO para números e condições.
+8. Só fale da usina do usuário (PERFIL DA USINA) se a pergunta for sobre ela. Nunca conclua que a usina
    está obrigada, proibida ou enquadrada em algo por dedução a partir do perfil.
-7. Português claro, sem juridiquês. Vá direto ao ponto, 2 a 6 frases; use lista com "- " se ajudar.
-8. Responda em texto corrido (sem JSON, sem markdown além da lista)."""
+9. Português claro, sem juridiquês. Vá direto ao ponto, 2 a 6 frases (uma lista pode ser maior,
+   se a pergunta pede uma lista); use lista com "- " se ajudar.
+10. Responda em texto corrido (sem JSON, sem markdown além da lista)."""
+
+
+MESES = "janeiro fevereiro março abril maio junho julho agosto setembro outubro novembro dezembro".split()
+
+
+def _hoje_por_extenso(hoje: date | None = None) -> str:
+    """'26/09/2026 (mês corrente: setembro de 2026)': sem isso, "este mês" vira adivinhação."""
+    hoje = hoje or date.today()
+    return f"{hoje:%d/%m/%Y} (mês corrente: {MESES[hoje.month - 1]} de {hoje.year})"
 
 
 def _descrever_perfil(perfil: dict | None) -> str:
@@ -302,6 +371,8 @@ def _descrever_perfil(perfil: dict | None) -> str:
 def _rotulo(fonte: dict) -> str:
     norma = fonte["norma"]
     base = norma.get("code") or norma.get("title") or "Norma"
+    if fonte.get("catalogo"):
+        return f"{base} (resumo do Energy Start)"
     return f"{base}, {fonte['artigo']}" if fonte.get("artigo") else base
 
 
@@ -314,6 +385,14 @@ def _data_br(data_iso: str | None) -> str | None:
 
 def _cabecalho_fonte(n: int, fonte: dict) -> str:
     norma = fonte["norma"]
+    if fonte.get("lista_base"):
+        return f"[{n}] (LISTA DAS NORMAS BASE)"
+    if fonte.get("catalogo"):
+        publicada = _data_br(norma.get("publishedAt"))
+        tipo = "RESUMO de novidade do feed" + (f", publicada em {publicada}" if publicada else "")
+        if fonte.get("foco"):
+            tipo += ", NORMA EM FOCO"
+        return f"[{n}] ({tipo}) {_rotulo(fonte)} — {norma.get('url') or 'sem link'}"
     if norma.get("canonica"):
         tipo = "NORMA BASE"
     else:
@@ -356,7 +435,11 @@ MARCADOR_SEM_RESPOSTA = "SEM_RESPOSTA"
 def gerar_resposta(pergunta: str, fontes: list[dict], perfil: dict | None, historico: list[dict]) -> dict | None:
     """Resposta com as citações usadas, ou None se o LLM julgar que nenhuma fonte responde."""
     blocos = [f"{_cabecalho_fonte(n, f)}\n{f['texto']}" for n, f in enumerate(fontes, start=1)]
-    conteudo = f"PERFIL DA USINA: {_descrever_perfil(perfil)}\n\nFONTES:\n\n" + "\n\n".join(blocos) + f"\n\nPERGUNTA: {pergunta}"
+    conteudo = (
+        f"HOJE: {_hoje_por_extenso()}\nPERFIL DA USINA: {_descrever_perfil(perfil)}\n\nFONTES:\n\n"
+        + "\n\n".join(blocos)
+        + f"\n\nPERGUNTA: {pergunta}"
+    )
     mensagens = [{"role": "system", "content": PROMPT_COPILOTO}]
     mensagens += [t for t in historico[-HISTORICO:] if t.get("role") in ("user", "assistant") and t.get("content")]
     mensagens.append({"role": "user", "content": conteudo})
@@ -391,7 +474,14 @@ def gerar_resposta(pergunta: str, fontes: list[dict], perfil: dict | None, histo
 RE_SEGUIMENTO = re.compile(r"^\s*(e|mas|então|entao)\b|\b(isso|disso|nisso|dela|dele|nesse caso|neste caso|essa lei|essa norma|esse artigo)\b", re.I)
 
 
-def responder(pergunta: str, perfil: dict | None = None, historico: list[dict] | None = None) -> dict:
+def responder(
+    pergunta: str,
+    perfil: dict | None = None,
+    historico: list[dict] | None = None,
+    norma_id: str | None = None,
+    novidades: list[dict] | None = None,
+    canonicas: list[dict] | None = None,
+) -> dict:
     historico = historico or []
     inicio = time.time()
     # Só pergunta de seguimento busca junto com a anterior: pergunta de assunto novo na mesma
@@ -401,13 +491,22 @@ def responder(pergunta: str, perfil: dict | None = None, historico: list[dict] |
     numeros, artigos = referencias(consulta)
     vetor = vetorizar([consulta], "query")[0]
 
-    # 1-2. Base interna: canônicas e novidades numa busca só, ranqueadas
+    # 1-2. Base interna: canônicas e novidades numa busca só, ranqueadas. A norma em foco entra
+    # com os trechos dela mesmo abaixo do limiar: é dela que o usuário está falando.
     candidatos = ranquear(recuperar(vetor, numeros, artigos), numeros, artigos)
     fontes = [f for f in candidatos if f["similaridade"] >= LIMIAR or f["bonus"] > 0][:TOP_K]
+    if norma_id:
+        do_foco = [f for f in recuperar(vetor, norma_ids=[norma_id], somente_referencias=True) if f["norma"].get("id") == norma_id]
+        do_foco = sorted(do_foco, key=lambda f: f["similaridade"], reverse=True)[:4]
+        ids_do_foco = {f.get("id") for f in do_foco}
+        fontes = do_foco + [f for f in fontes if f.get("id") not in ids_do_foco]
     if fontes:
         fontes += puxar_canonica_relacionada(fontes, vetor)
-        _registrar("base", fontes, numeros, artigos, inicio)
-        resposta = gerar_resposta(pergunta, fontes, perfil, historico)
+    # 3. Catálogo: o resumo das novidades do feed da empresa e a lista das normas-base
+    catalogo = fontes_do_catalogo(novidades or []) + fonte_das_canonicas(canonicas or [])
+    if fontes or catalogo:
+        _registrar("base", fontes, numeros, artigos, inicio, len(catalogo))
+        resposta = gerar_resposta(pergunta, fontes + catalogo, perfil, historico)
         print(f"[copiloto] resposta do LLM em {time.time() - inicio:.1f}s no total")
         if resposta:
             return resposta
@@ -416,7 +515,7 @@ def responder(pergunta: str, perfil: dict | None = None, historico: list[dict] |
         melhor = f"{candidatos[0]['similaridade']:.2f}" if candidatos else "base vazia"
         print(f"[copiloto] nada da base acima do limiar ({LIMIAR}; melhor: {melhor}) — indo para a busca externa")
 
-    # 3. Busca externa no DOU, com o mesmo limiar e o mesmo julgamento do LLM
+    # 4. Busca externa no DOU, com o mesmo limiar e o mesmo julgamento do LLM
     externas = [f for f in ranquear(buscar_no_dou(pergunta, vetor), numeros, artigos) if f["similaridade"] >= LIMIAR][:TOP_K]
     if externas:
         _registrar("busca no DOU", externas, numeros, artigos, inicio)
@@ -428,9 +527,10 @@ def responder(pergunta: str, perfil: dict | None = None, historico: list[dict] |
     return SEM_RESPOSTA
 
 
-def _registrar(origem: str, fontes: list[dict], numeros, artigos, inicio: float) -> None:
+def _registrar(origem: str, fontes: list[dict], numeros, artigos, inicio: float, catalogo: int = 0) -> None:
+    extra = f" + {catalogo} do catálogo" if catalogo else ""
     print(
-        f"[copiloto] {time.time() - inicio:.1f}s | {len(fontes)} fonte(s) da {origem} (normas {numeros or '-'}, artigos {artigos or '-'}): "
+        f"[copiloto] {time.time() - inicio:.1f}s | {len(fontes)} fonte(s) da {origem}{extra} (normas {numeros or '-'}, artigos {artigos or '-'}): "
         + "; ".join(map(_resumo_fonte, fontes))
     )
 

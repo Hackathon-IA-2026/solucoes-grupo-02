@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Put, Query, Request } from '@nestjs/common';
 import { UserPayload } from '../auth/types/user.payload.type';
 import { Interno } from '../ingestao/interno.decorator';
+import { TAXONOMIA } from '../alerta/taxonomia';
 import { cnpjValido, somenteDigitos } from '../utils/cnpj';
 import { PlantService, toPlantResponse } from './plant.service';
 import { UsinasAneelService } from './usinas-aneel.service';
@@ -12,6 +13,12 @@ export class PlantController {
         private readonly plantService: PlantService,
         private readonly usinasAneel: UsinasAneelService,
     ) {}
+
+    // Áreas e subáreas que a Central de Alertas oferece (as que o classificador conhece).
+    @Get('taxonomia')
+    taxonomia() {
+        return TAXONOMIA;
+    }
 
     @Get('me')
     async getPlant(@Request() req: { user: UserPayload }) {

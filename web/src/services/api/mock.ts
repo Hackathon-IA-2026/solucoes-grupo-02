@@ -36,7 +36,7 @@ let usina: Plant = {
     availability: 96.2,
     availabilityMin: 92,
     areas: ['Eólica', 'Solar'],
-    subareas: ['Outorga e autorização', 'Tarifas e encargos', 'Conexão e acesso', 'Licenciamento ambiental'],
+    subareas: ['Outorga e autorização', 'Conexão e acesso'],
     cegs: ['EOL.CV.RN.007663'],
     cnpjs: [],
     channels: { email: true, push: true, pdf: false },
@@ -336,6 +336,14 @@ export const api: Api = {
         await espera(180);
         return usina;
     },
+    async getTaxonomia() {
+        await espera(120);
+        return {
+            Solar: ['Geração distribuída', 'Conexão e acesso'],
+            Eólica: ['Cortes de geração', 'Outorga e autorização'],
+            Armazenamento: ['Autorização de armazenamento', 'Conexão e faturamento de armazenamento'],
+        };
+    },
     async updatePlant(patch) {
         await espera(260);
         usina = { ...usina, ...patch };
@@ -363,9 +371,10 @@ export const api: Api = {
         alerta.lido = true;
         return alerta;
     },
-    async listNoticias(setor?: string) {
+    async listNoticias(setor?: string, escopo?: string) {
         await espera(220);
-        return !setor ? NOTICIAS : NOTICIAS.filter((n) => n.setor === setor);
+        const minhas = escopo !== 'todas' && usina.areas.length > 0;
+        return NOTICIAS.filter((n) => (!setor || n.setor === setor) && (!minhas || usina.areas.includes(n.setor ?? '')));
     },
     async getNormPdf() {
         await espera(300);

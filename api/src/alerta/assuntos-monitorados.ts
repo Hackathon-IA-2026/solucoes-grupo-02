@@ -3,14 +3,21 @@ import type { PlantEntity } from '../plant/entities/plant.entity';
 import type { CompanieEntity } from '../companie/entities/companie.entity';
 import { raizCnpj } from '../utils/cnpj';
 import { normalizar } from '../utils/texto';
+import { TAXONOMIA } from './taxonomia';
+
+// Subáreas da taxonomia por área, normalizadas: `eolica` -> {`cortes de geracao`, ...}.
+const SUBAREAS_DA_AREA = new Map(Object.entries(TAXONOMIA).map(([area, subs]) => [normalizar(area), new Set(subs.map(normalizar))]));
 
 // Quais áreas/subáreas da norma a usina monitora. A norma guarda o que o classificador
 // devolveu: `area` = "Solar, Eólica" e `subarea` = "Solar > Geração distribuída; Eólica > ...".
-// Sem área marcada no perfil, nada casa. Sem subárea marcada, casa só pela área.
+// Sem área marcada no perfil, nada casa. Cada área vale inteira até que se marque uma subárea
+// dela: marcar "Cortes de geração" recorta Eólica e não mexe em Solar. Subárea que não é de
+// nenhuma área da taxonomia (resto de uma versão antiga da tela) não recorta nada.
 export function assuntosMonitorados(norma: Pick<NormaEntity, 'area' | 'subarea'>, plant: Pick<PlantEntity, 'areas' | 'subareas'>): string[] {
     const areasUsina = new Set((plant.areas ?? []).map(normalizar));
     const subareasUsina = new Set((plant.subareas ?? []).map(normalizar));
     if (areasUsina.size === 0) return [];
+    const recortada = (area: string) => [...(SUBAREAS_DA_AREA.get(normalizar(area)) ?? [])].some((s) => subareasUsina.has(s));
 
     const pares = (norma.subarea ?? '')
         .split(';')
@@ -20,7 +27,7 @@ export function assuntosMonitorados(norma: Pick<NormaEntity, 'area' | 'subarea'>
     const assuntos =
         pares.length > 0
             ? pares
-                  .filter(([area, sub]) => areasUsina.has(normalizar(area)) && (subareasUsina.size === 0 || subareasUsina.has(normalizar(sub))))
+                  .filter(([area, sub]) => areasUsina.has(normalizar(area)) && (!recortada(area) || subareasUsina.has(normalizar(sub))))
                   .map(([area, sub]) => `${area} › ${sub}`)
             : (norma.area ?? '')
                   .split(',')

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { BaseService } from '../base.service';
 import { NoticiaEntity } from './entities/noticia.entity';
 import { CreateNoticiaDto } from './dto/create-noticia.dto';
@@ -22,6 +22,7 @@ export function toNoticiaResponse(noticia: NoticiaEntity) {
         url: noticia.url,
         imageUrl: noticia.imageUrl,
         setor: noticia.setor,
+        setores: noticia.setores?.length ? noticia.setores : noticia.setor ? [noticia.setor] : [],
         date: formatDate(noticia.publicadoEm),
     };
 }
@@ -39,11 +40,23 @@ export class NoticiaService extends BaseService<NoticiaEntity> {
         return await this.persist(dto);
     }
 
-    async list(setor?: string): Promise<NoticiaEntity[]> {
-        return await this.findAllInstances({
-            where: setor ? { setor } : undefined,
-            order: { publicadoEm: 'DESC' },
-        });
+    // As mais recentes; com `areas` (as monitoradas pela empresa), só as que tratam de alguma delas.
+    async list(setor?: string, areas?: string[]): Promise<NoticiaEntity[]> {
+        const noticias = await this.findAllInstances({ order: { publicadoEm: 'DESC', createdAt: 'DESC' }, take: 300 });
+        const deAlguma = (n: NoticiaEntity, lista: string[]) => (n.setores?.length ? n.setores : [n.setor]).some((s) => s && lista.includes(s));
+        return noticias.filter((n) => (!setor || deAlguma(n, [setor])) && (!areas?.length || deAlguma(n, areas))).slice(0, 60);
+    }
+
+    // Quais destes links já estão gravados (a coleta não duplica notícia).
+    async urlsExistentes(urls: string[]): Promise<Set<string>> {
+        if (urls.length === 0) return new Set();
+        const achadas = await this.findAllInstances({ where: { url: In(urls) }, select: { id: true, url: true } });
+        return new Set(achadas.map((n) => n.url!));
+    }
+
+    async createMany(noticias: Array<Partial<NoticiaEntity>>): Promise<number> {
+        if (noticias.length === 0) return 0;
+        return (await this.repository.save(this.repository.create(noticias))).length;
     }
 
     async getById(id: string): Promise<NoticiaEntity> {
