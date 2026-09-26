@@ -43,7 +43,10 @@ Anote no fim deste arquivo tudo o que for diferente do esperado.
 2. **Reconhecimento**: `infra/scripts/discover.sh`
    - Escolha uma VPC e **duas subnets públicas** (`MapPublicIpOnLaunch = True`, AZs diferentes).
    - Preencha `vpcId`, `publicSubnetIds` e `availabilityZones` em [cdk.json](cdk.json), com as AZs na mesma ordem das subnets.
-   - Se `CDKToolkit` não existir: `cd infra && npx cdk bootstrap`.
+   - Se `CDKToolkit` não existir: `infra/scripts/bootstrap.sh` (uma vez só). **Não use `npx cdk bootstrap` direto**:
+     nesta conta ele falha no repositório ECR (a conta bloqueia `ecr:PutLifecyclePolicy` e `ecr:DeleteRepository`)
+     e deixa a pilha `CDKToolkit` quebrada. O script usa o modelo ajustado de [bootstrap/template.yaml](bootstrap/template.yaml)
+     e também conserta uma tentativa anterior que tenha falhado.
    - Se o Docker não estiver disponível no Code Editor, **pare e avise o time**. É preciso outro jeito de gerar a imagem (CodeBuild).
 3. **Segredos** (uma vez só): `infra/scripts/setup-secrets.sh`. Além da senha do banco e do JWT, cria a
    chave interna (api ↔ Python) e grava as chaves da NVIDIA, lidas de `ai/.env` (ou das variáveis
@@ -72,6 +75,7 @@ Anote no fim deste arquivo tudo o que for diferente do esperado.
 | Sintoma | Onde olhar |
 |---|---|
 | `cdk deploy` falha | Console → CloudFormation → stack `Grupo02App` → aba **Events**. O **primeiro** `FAILED` (de baixo para cima) é a causa. |
+| `cdk bootstrap` falha / `CDKToolkit` em `ROLLBACK_FAILED` ou `DELETE_FAILED` | `infra/scripts/bootstrap.sh` (remove a tentativa quebrada mantendo o repositório ECR e refaz com o modelo ajustado) |
 | `AccessDenied` / `not authorized to perform X` | A mensagem diz qual role e qual ação. Anote e pergunte aos organizadores se não for contornável. |
 | Stack em `ROLLBACK_COMPLETE` | Não dá para atualizar: `npx cdk destroy` e deploy de novo. O disco EFS fica (RETAIN). |
 | Deploy "trava" em `CREATE_IN_PROGRESS` no Service | A task não está subindo: `scripts/status.sh` e `scripts/logs.sh` |
