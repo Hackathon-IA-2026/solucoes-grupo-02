@@ -1,4 +1,4 @@
-import { dividirEmTrechos, mapearNorma, NormaMapeada, paraDataIso } from './ingestao.mapper';
+import { dividirEmTrechos, identificadoresCitados, mapearNorma, NormaMapeada, paraDataIso } from './ingestao.mapper';
 
 const HOJE = new Date('2026-09-24T12:00:00Z');
 
@@ -160,5 +160,31 @@ describe('dividirEmTrechos', () => {
         expect(trechos.length).toBeGreaterThan(1);
         expect(trechos.every((t) => t.artigo === 'Art. 5º')).toBe(true);
         expect(trechos.map((t) => t.texto).join('\n')).toBe(texto);
+    });
+});
+
+describe('abrangência e identificadores citados', () => {
+    const despacho =
+        'Decisão: liberar as unidades geradoras da UFV PS 360E Goiana, CEG UFV.RS.PE.075566-4.01, de titularidade de ' +
+        'Anglogold Ashanti, CNPJ nº 18.565.382/0001-66. Processo nº 48500.007392/2025-90. Interessada: SPE, CNPJ 11222333000181.';
+
+    it('sem as colunas do pipeline, tira CNPJs válidos e CEGs do texto', () => {
+        expect(identificadoresCitados({}, despacho)).toEqual({ cnpjs: ['18565382000166', '11222333000181'], cegs: ['UFV.RS.PE.075566'] });
+    });
+
+    it('com as colunas, usa as do pipeline (e descarta CNPJ inválido)', () => {
+        expect(identificadoresCitados({ cnpjs: ['18565382000166', '11111111111111'], cegs: ['EOL.CV.RN.07663-4.01'] }, despacho)).toEqual({
+            cnpjs: ['18565382000166'],
+            cegs: ['EOL.CV.RN.007663'],
+        });
+    });
+
+    it('grava a abrangência do classificador; sem ela, a norma é geral', () => {
+        expect(mapear({ ...linhaDoPipeline, abrangencia: 'individual', texto: despacho }).norma).toMatchObject({
+            abrangencia: 'individual',
+            cnpjs: ['18565382000166', '11222333000181'],
+            cegs: ['UFV.RS.PE.075566'],
+        });
+        expect(mapear(linhaDoPipeline).norma).toMatchObject({ abrangencia: 'geral', cnpjs: [], cegs: [] });
     });
 });

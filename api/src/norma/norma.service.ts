@@ -5,8 +5,7 @@ import { BaseService } from '../base.service';
 import { NormaEntity, NormaSource } from './entities/norma.entity';
 import { CreateNormaDto } from './dto/create-norma.dto';
 import { UpdateNormaDto } from './dto/update-norma.dto';
-import { PlantEntity } from '../plant/entities/plant.entity';
-import { assuntosMonitorados } from '../alerta/assuntos-monitorados';
+import { normaInteressa, PerfilDaEmpresa } from '../alerta/assuntos-monitorados';
 
 const SOURCE_LABEL: Record<NormaSource, string> = {
     aneel: 'ANEEL',
@@ -60,16 +59,21 @@ export class NormaService extends BaseService<NormaEntity> {
         return await this.persist(dto);
     }
 
-    // Com `perfil`, devolve só as normas das áreas/subáreas que a empresa monitora
-    // (o feed "do setor de escolha do usuário"). Sem área marcada no perfil, devolve tudo.
-    async list(source?: NormaSource, perfil?: Pick<PlantEntity, 'areas' | 'subareas'>): Promise<NormaEntity[]> {
+    // O feed da empresa: os atos gerais das áreas/subáreas que ela monitora (o feed "do setor
+    // de escolha do usuário"; com `porArea: false` ou sem área marcada, todos os gerais) e os
+    // atos individuais que citam a empresa ou uma usina dela — os de outras empresas ficam de fora.
+    async list(plant: PerfilDaEmpresa, source?: NormaSource, porArea = true): Promise<NormaEntity[]> {
         // normas canônicas são a base do copiloto, não novidades: ficam fora do feed
         const normas = await this.findAllInstances({
             where: { canonica: false, ...(source ? { source } : {}) },
             order: { publishedAt: 'DESC', createdAt: 'DESC' },
         });
-        if (!perfil?.areas?.length) return normas;
-        return normas.filter((n) => assuntosMonitorados(n, perfil).length > 0);
+        return normas.filter((n) => normaInteressa(n, plant, porArea));
+    }
+
+    // Novidades já gravadas, com o texto, para o `ai/reclassificar.py` refazer a classificação.
+    async listNovidadesComTexto(): Promise<NormaEntity[]> {
+        return await this.findAllInstances({ where: { canonica: false }, order: { publishedAt: 'ASC' } });
     }
 
     // "14300" acha a Lei nº 14.300 (o número é guardado com ponto, como no título).

@@ -3,6 +3,8 @@ import type { CreateNormaDto } from '../norma/dto/create-norma.dto';
 import type { NormaImpact, NormaSource } from '../norma/entities/norma.entity';
 import type { CreateLimiteDto } from '../limite/dto/create-limite.dto';
 import type { CreateTrechoDto } from '../trecho/dto/create-trecho.dto';
+import { normalizarCeg } from '../utils/ceg';
+import { cnpjValido, somenteDigitos } from '../utils/cnpj';
 
 // Converte uma linha do DataFrame final do pipeline Python (saída do `coletar_df`
 // em ai/models/summarizer.py, enviada com `df.to_json(orient="records")`) nos
@@ -97,6 +99,21 @@ function codigoDaNorma(titulo: string, tipo?: string, numero?: string, dataIso?:
     const ano = titulo.match(/DE (\d{4})\s*$/i)?.[1] ?? dataIso?.slice(0, 4);
     if (!tipo || !numero) return titulo;
     return `${tipo} nº ${numero}${ano ? `/${ano}` : ''}`;
+}
+
+// CNPJ formatado ("18.565.382/0001-66") ou só dígitos logo depois da palavra CNPJ.
+const CNPJ_NO_TEXTO = /\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b|CNPJ\D{0,15}(\d{14})\b/g;
+const CEG_NO_TEXTO = /\b[A-Z]{3}\s*\.\s*[A-Z]{2}\s*\.\s*[A-Z]{2}\s*\.\s*\d{4,6}/g;
+
+// Quem o ato cita: o pipeline manda as listas (`cnpjs`, `cegs`); sem elas, saem do texto.
+// Em qualquer caso ficam só CNPJs válidos (só dígitos) e CEGs normalizados, sem repetição.
+export function identificadoresCitados(linha: Record<string, unknown>, texto = ''): { cnpjs: string[]; cegs: string[] } {
+    const cnpjs = Array.isArray(linha.cnpjs) ? listaDeTextos(linha.cnpjs) : [...texto.matchAll(CNPJ_NO_TEXTO)].map((m) => m[1] ?? m[0]);
+    const cegs = Array.isArray(linha.cegs) ? listaDeTextos(linha.cegs) : (texto.match(CEG_NO_TEXTO) ?? []);
+    return {
+        cnpjs: [...new Set(cnpjs.map(somenteDigitos).filter(cnpjValido))],
+        cegs: [...new Set(cegs.map(normalizarCeg).filter((c): c is string => Boolean(c)))],
+    };
 }
 
 const INICIO_ARTIGO = /^Art\.?\s*\d+(?:\.\d+)*\s*[º°o]?(?:-[A-Z])?/i;
@@ -213,6 +230,8 @@ export function mapearNorma(linha: Linha, hoje = new Date()): NormaMapeada | { e
     });
     const trechos = trechosEnviados.length ? trechosEnviados : texto ? dividirEmTrechos(texto).map((t, i) => ({ ...t, ordem: i })) : [];
 
+    const { cnpjs, cegs } = identificadoresCitados(linha, texto);
+
     const modelo = str(linha.modelo);
     const tokensGastos = num(linha.tokens_gastos);
 
@@ -237,6 +256,10 @@ export function mapearNorma(linha: Linha, hoje = new Date()): NormaMapeada | { e
             // (o motor de alertas separa de volta para cruzar com o perfil da usina).
             area: listaDeTextos(linha.area).join(', ') || undefined,
             subarea: listaDeTextos(linha.subarea).join('; ') || undefined,
+            // Do classificador: "individual" = ato dirigido a uma empresa/usina (só vai para quem ele cita).
+            abrangencia: linha.abrangencia === 'individual' ? 'individual' : 'geral',
+            cnpjs,
+            cegs,
             hash: createHash('sha256')
                 .update(texto ?? link!)
                 .digest('hex'),

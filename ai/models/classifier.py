@@ -77,6 +77,18 @@ Sua tarefa é classificar uma norma (resolução, portaria ou despacho) nas áre
 ÁREAS E SUBÁREAS PERMITIDAS (use somente estas, com os nomes exatamente iguais):
 {lista}
 
+ABRANGÊNCIA — antes de classificar, decida a quem o ato se dirige:
+- "geral": cria, altera, revoga ou propõe regra para um grupo de agentes não identificados
+  um a um: resolução normativa, portaria normativa, lei, decreto, consulta pública, audiência
+  pública, tomada de subsídios, tarifa homologada de uma distribuidora (vale para todos na
+  área dela), decisão sobre pedido de uma associação do setor.
+- "individual": decide o caso de uma empresa, usina ou processo específico, identificado pelo
+  nome, CNPJ ou CEG: autoriza, libera operação em teste ou comercial, altera características
+  técnicas, transfere titularidade, define garantia física, enquadra no REIDI ou como projeto
+  prioritário, aplica penalidade, julga recurso, reconhece valores de P&D. Um ato que lista
+  várias empresas, cada uma com seu caso, também é individual.
+O sistema mostra ato individual só para a empresa citada; ato geral, para todo o setor.
+
 REGRAS:
 1. Leia o texto inteiro. Uma norma sobre outro assunto pode alterar um artigo que pertence
    a uma subárea (ex.: uma norma sobre tarifa social que muda uma regra de compensação de
@@ -87,22 +99,32 @@ REGRAS:
    mudança: aviso de consulta pública, audiência pública e tomada de subsídios entram na
    subárea do tema proposto, com o prazo de contribuição.
 5. O que não vale é citação de passagem, sem relação com o tema da subárea.
-6. Se houver uma relação razoável, mesmo indireta, com uma subárea, classifique-a com
-   relevância 1 em vez de deixar de fora. É melhor incluir com relevância baixa do que perder.
-6. Independentemente das subáreas, escreva de 1 a 4 "temas" livres e curtos que descrevam
+6. Em ato geral, se houver uma relação razoável, mesmo indireta, com uma subárea, classifique-a
+   com relevância 1 em vez de deixar de fora. É melhor incluir com relevância baixa do que perder.
+7. Em ato individual, classifique na subárea do assunto, se houver (ex.: liberação da operação
+   comercial de um parque eólico -> Eólica > Outorga e autorização), e use a "relevancia" para
+   o impacto na empresa citada (ver a escala abaixo). Usina solar centralizada, que a ANEEL
+   autoriza ou registra e libera por despacho, não é geração distribuída.
+8. Independentemente das subáreas, escreva de 1 a 4 "temas" livres e curtos que descrevam
    o assunto da norma (ex.: "tarifa social", "iluminação pública").
 
 FORMATO DA RESPOSTA: apenas um objeto JSON, sem texto antes ou depois, sem ```:
-{{"classificacoes": [{{"area": "Solar", "subarea": "Geração distribuída"}}],
+{{"abrangencia": "geral",
+  "classificacoes": [{{"area": "Solar", "subarea": "Geração distribuída"}}],
   "temas": ["tema livre 1", "tema livre 2"],
   "relevancia": 0,
   "justificativa": "uma frase curta explicando a escolha"}}
 
-"relevancia" vai de 0 a 3:
+"relevancia" vai de 0 a 3. Em ato geral:
 0 = não afeta nenhuma subárea
 1 = afeta pouco ou indiretamente
 2 = altera regra de uma subárea
-3 = muda regra central de uma subárea (prazo, limite, valor, obrigação)"""
+3 = muda regra central de uma subárea (prazo, limite, valor, obrigação)
+Em ato individual, o impacto na empresa citada:
+1 = registro ou informação (reconhecimento de valores, correção de dado cadastral)
+2 = muda a situação da usina (autorização, liberação de operação, alteração técnica,
+    transferência, garantia física, enquadramento em incentivo)
+3 = cria obrigação, prazo ou penalidade, nega pedido ou revoga autorização"""
 
 
 # ------------------------------------------------------------
@@ -180,6 +202,32 @@ def chamar_llm(mensagens):
     return bedrock.conversar(mensagens, max_tokens=1024) if bedrock.MODELO else chamar_nvidia(mensagens)
 
 
+# Na dúvida, "geral": ato geral segue pelo filtro de relevância; um individual marcado
+# como geral só vira ruído, enquanto um geral marcado como individual some do feed.
+def _abrangencia(dados):
+    return "individual" if str(dados.get("abrangencia", "")).strip().lower() == "individual" else "geral"
+
+
+def _relevancia(dados):
+    """0 a 3. Se o modelo classificou mas esqueceu a relevância (ou mandou algo que não é número),
+    assume 2 (média). Um 0 explícito continua 0 — `or 2` transformava esse 0 em 2."""
+    try:
+        return max(0, min(3, int(dados.get("relevancia"))))
+    except (TypeError, ValueError):
+        return 2
+
+
+RESULTADO_VAZIO = {
+    "abrangencia": "geral",
+    "area": [],
+    "subarea": [],
+    "relevancia": 0,
+    "temas": [],
+    "subarea_bruta": [],
+    "justificativa": "",
+}
+
+
 def classificar_texto(texto, titulo="", max_chars=40000):
     conteudo = (
         f"TÍTULO: {titulo}\n\nTEXTO:\n{texto[:max_chars]}"
@@ -194,27 +242,22 @@ def classificar_texto(texto, titulo="", max_chars=40000):
         try:
             dados = _ler_json(chamar_llm(mensagens))
             pares, brutos = _validar(dados)
+            abrangencia = _abrangencia(dados)
             return {
+                "abrangencia": abrangencia,
                 "area": sorted({a for a, _ in pares}),
                 "subarea": [
                     f"{a} > {s}" for a, s in pares
                 ],  # ex.: "Solar > Cortes de geração"
-                # se o modelo classificou mas esqueceu a relevância, assume 2 (média)
-                "relevancia": (dados.get("relevancia") or 2) if pares else 0,
+                # ato individual vale para a empresa citada mesmo sem subárea
+                "relevancia": _relevancia(dados) if pares or abrangencia == "individual" else 0,
                 "temas": dados.get("temas", [])[:4],
                 "subarea_bruta": brutos,  # o que o modelo respondeu, antes da validação
                 "justificativa": dados.get("justificativa", ""),
             }
         except (json.JSONDecodeError, ValueError):
             continue
-    return {
-        "area": [],
-        "subarea": [],
-        "relevancia": 0,
-        "temas": [],
-        "subarea_bruta": [],
-        "justificativa": "ERRO: resposta inválida",
-    }
+    return dict(RESULTADO_VAZIO, justificativa="ERRO: resposta inválida")
 
 
 # ------------------------------------------------------------
@@ -234,19 +277,12 @@ def classificar_df(df, coluna_texto="texto", pausa=PAUSA):
                 print(f"  erro na tentativa {tentativa + 1}: {e} — esperando 30s")
                 time.sleep(30)
         else:
-            r = {
-                "area": [],
-                "subarea": [],
-                "relevancia": 0,
-                "temas": [],
-                "subarea_bruta": [],
-                "justificativa": "ERRO: limite ou falha da API",
-            }
+            r = dict(RESULTADO_VAZIO, justificativa="ERRO: limite ou falha da API")
         aviso = ""
         if not r["subarea"] and r["subarea_bruta"]:
             aviso = f"  <- modelo respondeu {r['subarea_bruta']} e não casou com a taxonomia"
         print(
-            f"[{i}/{len(df)}] {r['subarea'] or 'nenhuma'} (relevância {r['relevancia']}){aviso}"
+            f"[{i}/{len(df)}] {r['abrangencia']} | {r['subarea'] or 'nenhuma'} (relevância {r['relevancia']}){aviso}"
         )
         resultados.append(r)
         time.sleep(pausa)

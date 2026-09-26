@@ -54,6 +54,15 @@ export class PlantEntity extends BaseEntity {
     @Column({ name: 'subareas', type: 'text', array: true, default: '{}' })
     subareas!: string[];
 
+    // Como a empresa aparece nos atos individuais da ANEEL/MME (despacho que libera uma usina,
+    // multa, REIDI...): CEGs das usinas (normalizados, ver utils/ceg.ts) e CNPJs das SPEs donas
+    // delas (só dígitos). O CNPJ da própria empresa já conta, não precisa repetir aqui.
+    @Column({ name: 'cegs', type: 'text', array: true, default: '{}' })
+    cegs!: string[];
+
+    @Column({ name: 'cnpjs', type: 'text', array: true, default: '{}' })
+    cnpjs!: string[];
+
     @Column({ name: 'channels', type: 'jsonb', default: { email: true, push: true, pdf: false } })
     channels!: PlantChannels;
 

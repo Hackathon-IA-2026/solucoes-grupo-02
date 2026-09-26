@@ -3,6 +3,7 @@ import { Column, Entity } from 'typeorm';
 
 export type NormaSource = 'aneel' | 'ccee' | 'dou';
 export type NormaImpact = 'alto' | 'medio' | 'baixo';
+export type NormaAbrangencia = 'geral' | 'individual';
 
 @Entity({ name: 'normas' })
 export class NormaEntity extends BaseEntity {
@@ -71,6 +72,19 @@ export class NormaEntity extends BaseEntity {
 
     @Column({ nullable: true })
     subarea?: string;
+
+    // "geral" vale para o setor (resolução normativa, consulta pública...) e casa pelas áreas
+    // monitoradas. "individual" é dirigida a uma empresa ou usina (despacho que libera uma
+    // usina, multa, REIDI...): só aparece e só gera alerta para a empresa citada em `cnpjs`/`cegs`.
+    @Column({ type: 'varchar', length: 10, default: 'geral' })
+    abrangencia!: NormaAbrangencia;
+
+    // CNPJs (só dígitos) e CEGs (normalizados, ver utils/ceg.ts) citados no texto.
+    @Column({ type: 'text', array: true, default: '{}' })
+    cnpjs!: string[];
+
+    @Column({ type: 'text', array: true, default: '{}' })
+    cegs!: string[];
 
     @Column({ name: 'fonte_oficial', nullable: true })
     fonteOficial?: string;

@@ -1,5 +1,5 @@
 import { IsArray, IsBoolean, IsDateString, IsIn, IsOptional, IsString, IsUrl } from 'class-validator';
-import type { NormaImpact, NormaSource } from '../entities/norma.entity';
+import type { NormaAbrangencia, NormaImpact, NormaSource } from '../entities/norma.entity';
 
 export class CreateNormaDto {
     @IsIn(['aneel', 'ccee', 'dou'])
@@ -73,6 +73,20 @@ export class CreateNormaDto {
     @IsString()
     @IsOptional()
     subarea?: string;
+
+    @IsIn(['geral', 'individual'])
+    @IsOptional()
+    abrangencia?: NormaAbrangencia;
+
+    @IsArray()
+    @IsString({ each: true })
+    @IsOptional()
+    cnpjs?: string[];
+
+    @IsArray()
+    @IsString({ each: true })
+    @IsOptional()
+    cegs?: string[];
 
     @IsString()
     @IsOptional()

@@ -15,8 +15,9 @@
 
 > Uma configuração por empresa (criada no cadastro). `me` é a usina da empresa de quem está logado.
 
-- GET /plants/me - Pega os dados técnicos da usina (fonte, potência, submercado, CO2, disponibilidade, áreas/subáreas monitoradas, canais e frequência de notificação).
-- PUT /plants/me - Atualiza esses dados (o que recalibra o motor de alertas).
+- GET /plants/me - Pega os dados técnicos da usina (fonte, potência, submercado, CO2, disponibilidade, áreas/subáreas monitoradas, `cegs` e `cnpjs`, canais e frequência de notificação).
+- PUT /plants/me - Atualiza esses dados (o que recalibra o motor de alertas). `cegs` são os códigos das usinas na ANEEL (ex.: `EOL.CV.RN.007663-4.01`) e `cnpjs` os das SPEs donas delas; é por eles, e pelo CNPJ da empresa, que um ato individual chega à empresa. A API guarda o CEG sem dígito e versão (`EOL.CV.RN.007663`, o formato que o pipeline extrai do DOU) e o CNPJ só com dígitos; CEG ou CNPJ inválido responde 400.
+- GET /plants/me/usinas-aneel?cnpjs= - Usinas em que o CNPJ da empresa, das SPEs salvas e dos `cnpjs` informados (separados por vírgula, para SPEs ainda não salvas) tem participação, segundo o cadastro de agentes de geração dos dados abertos da ANEEL: `[{ ceg, codigoCeg, nome, tipo, fase, cnpj, agente, participacaoPct }]`. A API baixa o CSV (~4,5 MB) na primeira consulta e guarda por um dia; sem acesso à ANEEL, responde 503.
 
 ## Trechos para RAG (/trechos) (cassano)
 
@@ -41,6 +42,7 @@ Todas respondem 403 para quem não é admin e 404 para usuário de outra empresa
 > Implementado como `/norms` (não `/feed`), pra bater com `web/src/api/http.ts`.
 
 - POST/GET/GET:id/PUT/DELETE /norms - CRUD completo. `GET /norms?source=aneel` filtra por fonte.
+- GET /norms - O feed da empresa: os atos gerais das áreas/subáreas que ela monitora (com `escopo=todas`, ou sem área marcada, todos os gerais) e os atos individuais que citam a empresa (CNPJ da empresa ou de uma SPE, pela raiz, ou CEG de uma usina dela). Ato individual de outra empresa nunca aparece.
 - GET /norms/:id/pdf - Gera e baixa um PDF de verdade do resumo (via `pdfkit`).
 
 ## Motor de Alertas (/alerts) (cassano)
@@ -52,7 +54,8 @@ Todas respondem 403 para quem não é admin e 404 para usuário de outra empresa
 Tipos de alerta (`tipo` na resposta, junto com `normId` e `lido`):
 
 - `limite_excedido` - um `limite` extraído de uma norma não é cumprido pelos dados da usina.
-- `norma_nova` - a ingestão trouxe uma norma cuja área/subárea (do classificador) está entre as `areas`/`subareas` monitoradas em `/plants/me`. Sem subárea marcada, casa só pela área; sem área marcada, não gera alerta. A comparação ignora acento e maiúsculas.
+- `norma_nova` - a ingestão trouxe um ato geral cuja área/subárea (do classificador) está entre as `areas`/`subareas` monitoradas em `/plants/me`. Sem subárea marcada, casa só pela área; sem área marcada, não gera alerta. A comparação ignora acento e maiúsculas.
+- `ato_da_empresa` - a ingestão trouxe uma publicação que cita a empresa: o CNPJ dela ou de uma SPE em `cnpjs` (pela raiz: matriz e filiais) ou o CEG de uma usina em `cegs`. Vale mesmo fora das áreas monitoradas. É o único jeito de um ato individual (despacho que libera, transfere ou multa uma usina) gerar alerta.
 
 E-mail: com `frequency = "Imediato"` o e-mail sai na hora. Com `"Resumo diário"` ou `"Resumo semanal"`, os alertas ficam para o cron (`AlertDigestService`: todo dia às 8h / segunda às 8h, horário de Brasília), que manda um e-mail só com os alertas do período.
 
@@ -108,6 +111,8 @@ Colunas lidas de cada linha (as demais são ignoradas; todas opcionais, menos `t
 | `data` (`DD/MM/AAAA` ou ISO), `orgao`, `tipo`, `link` | `publishedAt`, `orgao`, `tipo`, `url` (a fonte `aneel`/`ccee`/`dou` sai do domínio do link, ou de `fonte`) |
 | `texto` | `textoCompleto`, `hash` (sha256, usado junto com o `link` para ignorar duplicadas) e os `trechos` (quebrados por artigo) |
 | `area`, `subarea` (listas do classificador, ex.: `["Solar > Geração distribuída"]`) | usados pelo alerta `norma_nova` |
+| `abrangencia` (`"geral"` ou `"individual"`, do classificador) | `abrangencia`; sem ela, `geral`. Ato individual só vai para a empresa citada |
+| `cnpjs`, `cegs` (listas, de `ai/functions/identificadores.py`) | `cnpjs` (só dígitos, válidos) e `cegs` (sem dígito e versão); sem as colunas, a API tira do `texto` |
 | `relevancia` (0–3) | `impact`: 3 = alto, 2 = médio, resto = baixo |
 | `resumo` | `lead` e `extracoes.resumo` (ignorado se começar com "ERRO") |
 | `mudancas` (`o_que_mudou`, `antes`, `depois`) | `changes` ("o que muda") |
@@ -117,9 +122,17 @@ Colunas lidas de cada linha (as demais são ignoradas; todas opcionais, menos `t
 | `trechos` (`artigo?`, `texto`, `vetor?`) | `trechos` com embedding; sem essa coluna, a API quebra o `texto` por artigo, sem vetor |
 | `modelo`, `tokens_gastos` | `extracoes` |
 
-Colunas extras aceitas: `canonica: true` marca a norma-base do copiloto (fica fora do radar de novidades e não gera alerta de "norma nova"). Norma que já existe é ignorada, a não ser que chegue com `trechos` vetorizados: aí os trechos dela são trocados (`reindexadas`).
+Colunas extras aceitas: `canonica: true` marca a norma-base do copiloto (fica fora do radar de novidades e não gera alerta de "norma nova"); `somente_atualizar: true` nunca cria norma — se não achar a existente (pelo hash do texto ou pelo link), rejeita a linha com "norma não encontrada para atualizar" (é o que o `ai/reclassificar.py` usa). Norma que já existe só tem `abrangencia`, `cnpjs` e `cegs` atualizados (rodar de novo um dia já coletado corrige as normas antigas), a não ser que chegue com `trechos` vetorizados: aí os trechos dela também são trocados (`reindexadas`).
 
 Resposta: `{ "recebidas": 3, "criadas": 2, "duplicadas": 0, "reindexadas": 0, "rejeitadas": [{ "indice": 2, "motivo": "sem \"titulo\"" }], "alertas": 2 }`.
+
+### GET /interno/normas
+
+As novidades já gravadas (sem as canônicas), com o texto: `[{ id, titulo, link, texto, abrangencia }]`. Usada pelo `ai/reclassificar.py` para classificar de novo em ato geral ou individual.
+
+### GET /interno/clientes/identificadores
+
+Raízes de CNPJ (8 dígitos) e CEGs de todos os clientes: `{ "raizesCnpj": ["18565382"], "cegs": ["EOL.CV.RN.007663"] }`. O `main.py` usa para descartar, antes do resumidor, os atos individuais que não citam nenhum cliente.
 
 ### POST /interno/trechos/busca
 
@@ -138,8 +151,8 @@ Busca vetorial do copiloto: `{ "vetor": [...], "limite?": 20, "numeros?": ["1430
 
 - empresas (id, razao_social, cnpj)
 - user (id, nome, email, senha, cargo, #company_id, is_admin, convite_pendente, token_reset_password)
-- normas (id, titulo, orgao, tipo, numero, data, area, subarea, link, fonte oficial, situacao, hash, texto completo, coletado em) (lomenha)
-- configuracoes (id, #companie_id, nome, fonte, modalidade, potencia(kW), data de protocolo, distribuidaora, tem armazenamento, participacao do maior titular%, nível de CO2) (cassano)
+- normas (id, titulo, orgao, tipo, numero, data, area, subarea, abrangencia, cnpjs, cegs, link, fonte oficial, situacao, hash, texto completo, coletado em) (lomenha)
+- configuracoes (id, #companie_id, nome, fonte, modalidade, potencia(kW), data de protocolo, distribuidaora, tem armazenamento, participacao do maior titular%, nível de CO2, cegs, cnpjs) (cassano)
 - materias_dou (id da matérias, data, seção, tipo de ato, orgao, titulo, ementa, texto, decisao do filtro e motivo, subarea, norma relacionada ) (lomenha)
 - extracoes ( id, norma_id, hash do texto usado, modelo, resumo, tokens gastos, data) (lomenha)
 - limites (id, norma_id, extracao_id, parâmetro, operador, valor, unidade, valor em kW, valor máximo, condições, vigência, artigo, trecho literal, status) (roberto)

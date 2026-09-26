@@ -36,8 +36,24 @@ export interface Plant {
     availabilityMin: number;
     areas: string[];
     subareas: string[];
+    // Como a empresa aparece nos atos individuais (despacho sobre uma usina, multa...): CEGs das
+    // usinas e CNPJs (só dígitos) das SPEs. O CNPJ da empresa já conta.
+    cegs: string[];
+    cnpjs: string[];
     channels: { email: boolean; push: boolean; pdf: boolean };
     frequency: string;
+}
+
+// Usina do cadastro de agentes de geração da ANEEL (GET /plants/me/usinas-aneel).
+export interface UsinaAneel {
+    ceg: string; // normalizado, como vai em Plant.cegs
+    codigoCeg: string;
+    nome: string;
+    tipo: string;
+    fase: string;
+    cnpj: string;
+    agente: string;
+    participacaoPct: number;
 }
 
 export interface Noticia {
@@ -58,7 +74,7 @@ export interface Alert {
     message: string;
     at: string;
     lido?: boolean;
-    tipo?: string; // 'norma_nova' | 'limite_excedido'
+    tipo?: string; // 'norma_nova' | 'ato_da_empresa' | 'limite_excedido'
     normId?: string;
 }
 
@@ -139,6 +155,7 @@ export interface Api {
     getNorm(id: string): Promise<Norm>;
     getPlant(): Promise<Plant>;
     updatePlant(patch: Partial<Plant>): Promise<Plant>;
+    listUsinasAneel(cnpjs: string[]): Promise<UsinaAneel[]>; // cnpjs: SPEs ainda não salvas
     listAlerts(): Promise<Alert[]>;
     checkAlerts(): Promise<Alert[]>;
     markAlertRead(id: string): Promise<Alert>;

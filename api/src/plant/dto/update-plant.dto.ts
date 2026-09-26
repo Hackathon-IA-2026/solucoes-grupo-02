@@ -1,5 +1,7 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsBoolean, IsDateString, IsNumber, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsNumber, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
+import { IsCeg } from '../../utils/ceg';
+import { IsCnpj } from '../../utils/cnpj';
 
 class PlantChannelsDto {
     @IsBoolean()
@@ -75,6 +77,18 @@ export class UpdatePlantDto {
     @IsString({ each: true })
     @IsOptional()
     subareas?: string[];
+
+    @IsArray()
+    @ArrayMaxSize(200)
+    @IsCeg({ each: true })
+    @IsOptional()
+    cegs?: string[];
+
+    @IsArray()
+    @ArrayMaxSize(200)
+    @IsCnpj({ each: true })
+    @IsOptional()
+    cnpjs?: string[];
 
     @ValidateNested()
     @Type(() => PlantChannelsDto)

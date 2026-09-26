@@ -38,6 +38,10 @@ export const api: Api = {
         const { data } = await client.put('/plants/me', patch);
         return data;
     },
+    listUsinasAneel: async (cnpjs) => {
+        const { data } = await client.get('/plants/me/usinas-aneel', { params: cnpjs.length ? { cnpjs: cnpjs.join(',') } : {} });
+        return data;
+    },
     listAlerts: async () => {
         const { data } = await client.get('/alerts');
         return data;

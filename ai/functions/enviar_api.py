@@ -41,6 +41,18 @@ def _lotes(normas: list[dict]) -> list[tuple[int, list[dict]]]:
     return lotes
 
 
+def buscar_clientes() -> dict:
+    """Raízes de CNPJ e CEGs de todos os clientes (GET /interno/clientes/identificadores).
+    Sem a API, devolve listas vazias: aí nenhum ato individual segue no pipeline."""
+    try:
+        r = requests.get(f"{API_URL}/interno/clientes/identificadores", headers={"x-internal-key": CHAVE}, timeout=60)
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        print(f"[aviso] não consegui buscar os clientes na API ({e}): atos individuais serão descartados.")
+        return {"raizesCnpj": [], "cegs": []}
+
+
 def enviar_para_api(df) -> dict:
     """Envia as normas em lotes e devolve o total somado das respostas da API."""
     total = {"recebidas": 0, "criadas": 0, "duplicadas": 0, "reindexadas": 0, "rejeitadas": 0, "alertas": 0}

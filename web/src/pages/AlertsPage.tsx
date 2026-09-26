@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
 import { TELA } from '../components/AppShell';
-import { Button, CAMPO, Chip, PageHead, Panel, PanelTitle, ROTULO, SwitchRow, cx, fmt } from '../components/ui';
+import { Button, CAMPO, Chip, LinkButton, PageHead, Panel, PanelTitle, ROTULO, SwitchRow, cx, fmt } from '../components/ui';
 import { useToast } from '../hooks/useToast';
+import { normalizarCeg } from '../utils/ceg';
+import { cnpjValido, mascararCnpj } from '../utils/cnpj';
 import type { Alert, Plant } from '../types';
 
 const AREAS = ['Eólica', 'Solar', 'Hidrelétrica', 'Biomassa', 'Térmica', 'Transmissão', 'Armazenamento'];
@@ -58,6 +60,16 @@ export function AlertsPage() {
     onError: (e) => toast(e instanceof Error ? e.message : 'Não foi possível salvar.'),
   });
 
+  // Sugere os CEGs pelo cadastro de agentes de geração da ANEEL (CNPJ da empresa + SPEs do formulário).
+  const buscarUsinas = useMutation({
+    mutationFn: (cnpjs: string[]) => api.listUsinasAneel(cnpjs),
+    onSuccess: (usinas) => {
+      if (usinas.length === 0) toast('Nenhuma usina na ANEEL com o CNPJ da empresa ou das SPEs informadas. Inclua o CNPJ de uma SPE e busque de novo.');
+    },
+    onError: (e) => toast(e instanceof Error ? e.message : 'Não foi possível consultar a ANEEL.'),
+  });
+  const [novoId, setNovoId] = useState('');
+
   const marcarLido = useMutation({
     mutationFn: (id: string) => api.markAlertRead(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts'] }),
@@ -71,8 +83,24 @@ export function AlertsPage() {
 
   if (!form) return <section className={TELA}>Carregando…</section>;
 
-  const alterna = (campo: 'areas' | 'subareas', valor: string) =>
+  const alterna = (campo: 'areas' | 'subareas' | 'cegs' | 'cnpjs', valor: string) =>
     setForm({ ...form, [campo]: form[campo].includes(valor) ? form[campo].filter((v) => v !== valor) : [...form[campo], valor] });
+
+  // Só dígitos e pontuação = CNPJ de uma SPE; o resto tem que ser um CEG.
+  const adicionarId = () => {
+    const texto = novoId.trim();
+    if (/^[\d.\-/\s]+$/.test(texto)) {
+      const cnpj = texto.replace(/\D/g, '');
+      if (!cnpjValido(cnpj)) return toast('Confira o CNPJ — os dígitos verificadores não batem.');
+      if (!form.cnpjs.includes(cnpj)) alterna('cnpjs', cnpj);
+    } else {
+      const ceg = normalizarCeg(texto);
+      if (!ceg) return toast('Não reconheci o CEG. O formato é como EOL.CV.RN.007663-4.01.');
+      if (!form.cegs.includes(ceg)) alterna('cegs', ceg);
+    }
+    setNovoId('');
+  };
+  const nomeDaUsina = (ceg: string) => buscarUsinas.data?.find((u) => u.ceg === ceg)?.nome;
 
   const problemas: string[] = [];
   const oks: string[] = [];
@@ -115,6 +143,53 @@ export function AlertsPage() {
                   {s}
                 </Chip>
               ))}
+            </div>
+          </div>
+
+          <div className="mb-[22px]">
+            <PanelTitle
+              titulo="Suas usinas na ANEEL"
+              hint="Despachos que liberam, transferem ou multam uma usina chegam só para a empresa citada. O CNPJ da empresa já conta; inclua os CEGs das usinas e os CNPJs das SPEs donas delas."
+            />
+            <div className="mt-3 flex gap-2">
+              <input
+                className={cx(CAMPO, 'tabular-nums')}
+                placeholder="CEG (EOL.CV.RN.007663-4.01) ou CNPJ de uma SPE"
+                value={novoId}
+                onChange={(e) => setNovoId(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && adicionarId()}
+              />
+              <Button variante="ghost" tamanho="sm" onClick={adicionarId} disabled={!novoId.trim()}>
+                Adicionar
+              </Button>
+            </div>
+            {form.cegs.length + form.cnpjs.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-[7px]">
+                {form.cegs.map((c) => (
+                  <Chip key={c} ativo onClick={() => alterna('cegs', c)}>
+                    {nomeDaUsina(c) ? `${nomeDaUsina(c)} · ${c}` : c} ×
+                  </Chip>
+                ))}
+                {form.cnpjs.map((c) => (
+                  <Chip key={c} ativo onClick={() => alterna('cnpjs', c)}>
+                    SPE {mascararCnpj(c)} ×
+                  </Chip>
+                ))}
+              </div>
+            )}
+            <div className="mt-3">
+              <LinkButton onClick={() => buscarUsinas.mutate(form.cnpjs)} disabled={buscarUsinas.isPending}>
+                {buscarUsinas.isPending ? 'Consultando a ANEEL…' : 'Buscar as usinas da empresa no cadastro da ANEEL'}
+              </LinkButton>
+              {!!buscarUsinas.data?.length && (
+                <div className="mt-2.5 flex flex-wrap gap-[7px]">
+                  {buscarUsinas.data.map((u) => (
+                    <Chip key={u.ceg} ativo={form.cegs.includes(u.ceg)} onClick={() => alterna('cegs', u.ceg)}>
+                      {u.nome} · {u.tipo} · {u.fase}
+                    </Chip>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

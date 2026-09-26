@@ -64,6 +64,13 @@ Anote no fim deste arquivo tudo o que for diferente do esperado.
    python carregar_canonicas.py        # normas-base (uma vez; ~10 s)
    python main.py 25-09-2026           # novidades de um dia do DOU (sem data = hoje)
    ```
+   Normas gravadas antes da separação entre ato geral e individual (despacho sobre uma usina, multa...)
+   entram no banco como "geral" e continuam no feed de todos. Depois do deploy, reclassifique-as no lugar,
+   sem apagar nada (uma chamada ao classificador por norma):
+   ```bash
+   python reclassificar.py --simular   # mostra o que mudaria
+   python reclassificar.py
+   ```
    Depois pergunte algo no Copiloto do site. O Claude que escreve no classificador, no resumidor e no
    copiloto está em `LLM_MODEL_ID` ([lib/app-stack.ts](lib/app-stack.ts)); confira se ele existe na conta com
    `aws bedrock list-inference-profiles --query "inferenceProfileSummaries[].inferenceProfileId"`.

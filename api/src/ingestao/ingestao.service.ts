@@ -46,7 +46,12 @@ export class IngestaoService {
                 continue;
             }
             try {
-                const salvo = await this.salvar(mapeada);
+                // `somente_atualizar` (o ai/reclassificar.py): nunca cria norma, só atualiza a que já existe
+                const salvo = await this.salvar(mapeada, linha.somente_atualizar === true);
+                if (salvo.naoEncontrada) {
+                    resultado.rejeitadas.push({ indice, motivo: 'norma não encontrada para atualizar' });
+                    continue;
+                }
                 if (salvo.norma) novas.push(salvo.norma);
                 else resultado.duplicadas++;
                 if (salvo.reindexada) resultado.reindexadas++;
@@ -70,15 +75,21 @@ export class IngestaoService {
 
     // Norma + extração + limites + trechos numa transação só: se algo falhar no meio,
     // não sobra norma "pela metade" que a próxima coleta consideraria duplicada.
-    // Norma que já existe é ignorada — a não ser que chegue com trechos vetorizados: aí os
+    // Norma que já existe só tem a abrangência e os CNPJs/CEGs citados atualizados — a não ser que chegue com trechos vetorizados: aí os
     // trechos dela são trocados (normas gravadas antes do copiloto ganham vetores, e rodar
     // de novo a carga das canônicas com outro modelo de embedding atualiza a base).
-    private async salvar({ norma, extracao, limites, trechos }: NormaMapeada): Promise<{ norma?: NormaEntity; reindexada?: boolean }> {
+    private async salvar(
+        { norma, extracao, limites, trechos }: NormaMapeada,
+        somenteAtualizar = false,
+    ): Promise<{ norma?: NormaEntity; reindexada?: boolean; naoEncontrada?: boolean }> {
         return await this.dataSource.transaction(async (m) => {
             const mesma: FindOptionsWhere<NormaEntity>[] = [{ hash: norma.hash }];
             if (norma.url) mesma.push({ url: norma.url });
             const existente = await m.findOne(NormaEntity, { where: mesma, select: { id: true } });
             if (existente) {
+                // Quem a norma atinge vem da classificação mais recente: rodar de novo um dia já
+                // coletado corrige as normas gravadas antes da separação entre ato geral e individual.
+                await m.update(NormaEntity, existente.id, { abrangencia: norma.abrangencia, cnpjs: norma.cnpjs, cegs: norma.cegs });
                 if (!trechos.some((t) => t.vetor?.length)) return {};
                 await m.delete(TrechoEntity, { normaId: existente.id });
                 await m.save(
@@ -89,6 +100,7 @@ export class IngestaoService {
                 );
                 return { reindexada: true };
             }
+            if (somenteAtualizar) return { naoEncontrada: true };
 
             const salva = await m.save(m.create(NormaEntity, norma));
             const extracaoSalva = extracao

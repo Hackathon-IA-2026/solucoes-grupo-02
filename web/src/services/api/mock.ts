@@ -37,6 +37,8 @@ let usina: Plant = {
     availabilityMin: 92,
     areas: ['Eólica', 'Solar'],
     subareas: ['Outorga e autorização', 'Tarifas e encargos', 'Conexão e acesso', 'Licenciamento ambiental'],
+    cegs: ['EOL.CV.RN.007663'],
+    cnpjs: [],
     channels: { email: true, push: true, pdf: false },
     frequency: 'Imediato',
 };
@@ -338,6 +340,13 @@ export const api: Api = {
         await espera(260);
         usina = { ...usina, ...patch };
         return usina;
+    },
+    async listUsinasAneel() {
+        await espera(400);
+        return [
+            { ceg: 'EOL.CV.RN.007663', codigoCeg: 'EOL.CV.RN.007663-4.1', nome: 'Serra do Vento I', tipo: 'EOL', fase: 'Operação', cnpj: '11222333000181', agente: 'SERRA DO VENTO ENERGIA S.A.', participacaoPct: 100 },
+            { ceg: 'EOL.CV.RN.007664', codigoCeg: 'EOL.CV.RN.007664-2.1', nome: 'Serra do Vento II', tipo: 'EOL', fase: 'Construção', cnpj: '11222333000181', agente: 'SERRA DO VENTO ENERGIA S.A.', participacaoPct: 100 },
+        ];
     },
     async listAlerts() {
         await espera(200);

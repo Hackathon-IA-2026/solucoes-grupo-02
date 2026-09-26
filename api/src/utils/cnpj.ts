@@ -21,6 +21,11 @@ export function cnpjValido(valor: string): boolean {
     return cnpj.endsWith(`${d1}${d2}`);
 }
 
+// Os 8 primeiros dígitos: matriz e filiais têm a mesma raiz (são a mesma pessoa jurídica).
+export function raizCnpj(cnpj: string): string {
+    return somenteDigitos(cnpj).slice(0, 8);
+}
+
 export function formatarCnpj(cnpj?: string | null): string {
     if (!cnpj) return '';
     const d = somenteDigitos(cnpj);

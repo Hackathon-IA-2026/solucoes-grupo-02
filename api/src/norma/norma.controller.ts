@@ -23,11 +23,12 @@ export class NormaController {
         return toNormResponse(norma);
     }
 
-    // `escopo=todas` ignora o perfil; o padrão é só o que a empresa monitora.
+    // `escopo=todas` ignora as áreas monitoradas; o padrão é só o que a empresa monitora. Nos dois,
+    // ato individual (despacho sobre uma usina, multa...) só aparece para a empresa citada.
     @Get()
     async list(@Request() req: { user: UserPayload }, @Query('source') source?: NormaSource, @Query('escopo') escopo?: 'minhas' | 'todas') {
-        const perfil = escopo === 'todas' ? undefined : await this.plantService.getPlant(req.user.companyId);
-        const normas = await this.normaService.list(source, perfil);
+        const plant = await this.plantService.getPlant(req.user.companyId);
+        const normas = await this.normaService.list(plant, source, escopo !== 'todas');
         return normas.map(toNormResponse);
     }
 

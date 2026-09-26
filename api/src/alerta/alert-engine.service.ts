@@ -10,7 +10,7 @@ import { NotificationService } from '../notification/notification.service';
 import { escapeHtml } from '../utils/texto';
 import { AlertaEntity } from './entities/alerta.entity';
 import { AlertaService } from './alerta.service';
-import { assuntosMonitorados } from './assuntos-monitorados';
+import { assuntosMonitorados, citaAEmpresa } from './assuntos-monitorados';
 
 // Cruza `limites` (regras extraídas das normas) com `configuracoes` (o perfil
 // operacional da usina) e cria um `Alerta` pra cada regra descumprida — é o
@@ -131,19 +131,22 @@ export class AlertEngineService {
         });
     }
 
+    // Ato geral: avisa quem monitora a área/subárea. Ato individual (despacho que libera uma
+    // usina, multa, REIDI...): só a empresa citada pelo CNPJ ou pelo CEG de uma usina dela.
     private async alertarNormasNovas(plant: PlantEntity, normas: NormaEntity[]): Promise<AlertaEntity[]> {
         const criados: AlertaEntity[] = [];
         for (const norma of normas) {
-            const assuntos = assuntosMonitorados(norma, plant);
-            if (assuntos.length === 0) continue;
+            const daEmpresa = citaAEmpresa(norma, plant);
+            const assuntos = norma.abrangencia === 'individual' ? [] : assuntosMonitorados(norma, plant);
+            if (!daEmpresa && assuntos.length === 0) continue;
 
             const titulo = norma.code && norma.code !== norma.title ? `${norma.code} — ${norma.title}` : norma.title;
             criados.push(
                 await this.alertaService.create(plant.companyId!, {
                     normaId: norma.id,
-                    tipo: 'norma_nova',
+                    tipo: daEmpresa ? 'ato_da_empresa' : 'norma_nova',
                     severidade: norma.impact,
-                    titulo: `Nova publicação em ${assuntos.join(' · ')}`,
+                    titulo: daEmpresa ? 'Publicação que cita a sua empresa' : `Nova publicação em ${assuntos.join(' · ')}`,
                     mensagem: norma.deadline ? `${titulo}. ${norma.deadline}.` : `${titulo}.`,
                 }),
             );
