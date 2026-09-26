@@ -1,30 +1,39 @@
 """
-Energy Start — Embeddings (vetores) dos trechos das normas, usando a API da NVIDIA
+Energy Start — Embeddings (vetores) dos trechos das normas
 
 Os vetores vão para a API junto com cada norma (coluna "trechos") e são o que
 o copiloto usa para achar os trechos mais parecidos com a pergunta do usuário.
 
-Modelo: nvidia/nemotron-3-embed-1b (multilíngue). Ele devolve 2048 dimensões;
-guardamos só as primeiras 1024 (o modelo é treinado para isso — nos testes a
-separação entre trecho certo e errado ficou igual) e normalizamos, para a
-similaridade de cosseno virar um produto escalar.
+Dois modelos, e os vetores de um não servem para o outro:
+  - Com BEDROCK_EMBEDDING_MODEL_ID: Titan Text Embeddings V2 no Amazon Bedrock
+    (multilíngue), com 512 dimensões. O tamanho é diferente do da NVIDIA de
+    propósito: a API ignora trechos com vetor de outro tamanho, então vetores dos
+    dois modelos nunca são comparados. Trocar de modelo exige vetorizar a base de
+    novo (carregar_canonicas.py e main.py de cada dia já coletado).
+  - Sem ela: nvidia/nemotron-3-embed-1b na API da NVIDIA (multilíngue). Ele devolve
+    2048 dimensões; guardamos só as primeiras 1024 (o modelo é treinado para isso —
+    nos testes a separação entre trecho certo e errado ficou igual).
+Os vetores são normalizados, para a similaridade de cosseno virar um produto escalar.
 """
 
 import math
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 from dotenv import load_dotenv
 
+from functions import bedrock
 from functions.trechos import dividir_em_trechos
 
 load_dotenv()
 
 URL = "https://integrate.api.nvidia.com/v1/embeddings"
 MODELO = "nvidia/nemotron-3-embed-1b"
-DIMENSOES = 1024
-LOTE = 32  # textos por chamada
+DIMENSOES = 512 if bedrock.MODELO_EMBEDDING else 1024
+LOTE = 32  # textos por chamada à NVIDIA
+PARALELO = 4  # chamadas simultâneas ao Titan, que recebe um texto por chamada
 CHAVE = os.getenv("NVIDIA_KEY_COPILOTO") or os.getenv("NVIDIA_KEY_SUMMARIZER", "")
 
 
@@ -34,7 +43,15 @@ def _normalizar(v: list[float]) -> list[float]:
 
 
 def vetorizar(textos: list[str], tipo: str = "passage") -> list[list[float]]:
-    """tipo="passage" para trechos de norma, tipo="query" para a pergunta do usuário."""
+    """tipo="passage" para trechos de norma, tipo="query" para a pergunta do usuário
+    (só a NVIDIA diferencia; o Titan vetoriza os dois do mesmo jeito)."""
+    if bedrock.MODELO_EMBEDDING:
+        with ThreadPoolExecutor(max_workers=PARALELO) as executor:
+            return [_normalizar(v) for v in executor.map(lambda t: bedrock.vetorizar(t, DIMENSOES), textos)]
+    return _vetorizar_nvidia(textos, tipo)
+
+
+def _vetorizar_nvidia(textos: list[str], tipo: str) -> list[list[float]]:
     vetores: list[list[float]] = []
     for i in range(0, len(textos), LOTE):
         lote = textos[i : i + LOTE]

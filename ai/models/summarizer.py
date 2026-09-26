@@ -1,5 +1,6 @@
 # ============================================================
-# Energy Start — Coletor (2º LLM) usando a API da NVIDIA
+# Energy Start — Coletor (2º LLM): Claude no Amazon Bedrock ou API da NVIDIA
+# (com BEDROCK_MODEL_ID usa o Bedrock, como no deploy da AWS; sem ela, a NVIDIA)
 #
 # Roda DEPOIS do classificador, só nas normas com relevância >= 2.
 # Para cada norma, extrai o que mudou (antes/depois, valores, prazos)
@@ -19,11 +20,16 @@ import pandas as pd
 import requests
 from dotenv import load_dotenv
 
+from functions import bedrock
+
 load_dotenv()  # lê NVIDIA_KEY_SUMMARIZER do arquivo .env
 
 URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 MODELO = "google/gemma-4-31b-it"
 CHAVE = f"Bearer {os.getenv('NVIDIA_KEY_SUMMARIZER', '')}"
+# Espera entre normas: a API gratuita da NVIDIA limita as chamadas por minuto. No Bedrock não
+# precisa (o boto3 espera sozinho quando a cota estoura).
+PAUSA = 0 if bedrock.MODELO else 7
 
 SIMILARIDADE_MINIMA = 0.90  # tolerância da conferência de citação
 
@@ -91,6 +97,11 @@ def chamar_nvidia(mensagens, modelo, max_tokens=8192):  # normas com muitas muda
     return r.json()["choices"][0]["message"]["content"] or ""
 
 
+def chamar_llm(mensagens, modelo, max_tokens=8192):
+    """Claude no Bedrock se BEDROCK_MODEL_ID estiver definida; senão, `modelo` na API da NVIDIA."""
+    return bedrock.conversar(mensagens, max_tokens) if bedrock.MODELO else chamar_nvidia(mensagens, modelo, max_tokens)
+
+
 # ------------------------------------------------------------
 # 3. Conferência de citação (sem IA)
 # ------------------------------------------------------------
@@ -142,7 +153,7 @@ def coletar_texto(texto, modelo=MODELO, max_chars=60000):
     ]
     for _ in range(2):
         try:
-            dados = _ler_json(chamar_nvidia(mensagens, modelo))
+            dados = _ler_json(chamar_llm(mensagens, modelo))
         except (json.JSONDecodeError, ValueError):
             continue
         r = {
@@ -167,7 +178,7 @@ def coletar_texto(texto, modelo=MODELO, max_chars=60000):
 # ------------------------------------------------------------
 # 5. Coletar o DataFrame (só o que o classificador marcou)
 # ------------------------------------------------------------
-def coletar_df(df, coluna_texto="texto", relevancia_minima=1, pausa=7):
+def coletar_df(df, coluna_texto="texto", relevancia_minima=1, pausa=PAUSA):
     alvo = df[df["relevancia"] >= relevancia_minima] if "relevancia" in df else df
     print(f"{len(alvo)} de {len(df)} normas vão para o coletor\n")
 

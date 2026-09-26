@@ -6,7 +6,7 @@ Energy Start — Serviço do copiloto (chamado pela API, nunca pelo navegador)
 Contrato (o mesmo que a API espera em AI_SERVICE_URL):
     POST /ask  {"question": "...", "perfil": {...perfil da usina...}, "historico": [{"role", "content"}]}
        ->      {"answer": "texto com [n]", "citations": [{"label", "excerpt", "normId", "url"}]}
-Exige o header x-internal-key (INTERNAL_API_KEY): cada pergunta gasta chamadas da NVIDIA.
+Exige o header x-internal-key (INTERNAL_API_KEY): cada pergunta gasta chamadas de modelo (Bedrock ou NVIDIA).
 """
 
 import hmac

@@ -8,7 +8,7 @@ openai>=1.30           # cliente compatível com OpenAI (versão alternativa do 
 python-dotenv>=1.0     # lê a chave da API do arquivo .env, fora do código
 fastapi>=0.115         # serviço do copiloto (POST /ask), chamado pela API
 uvicorn>=0.30          # servidor do serviço do copiloto
-boto3>=1.35            # Claude no Amazon Bedrock para o copiloto (opcional: BEDROCK_MODEL_ID)
+boto3>=1.35            # Amazon Bedrock: Claude e Titan (opcional: BEDROCK_MODEL_ID e BEDROCK_EMBEDDING_MODEL_ID)
 
 # Opcional — só para a comparação com o classificador zero-shot do Hugging Face (pesado, instala o PyTorch)
 # transformers>=4.40

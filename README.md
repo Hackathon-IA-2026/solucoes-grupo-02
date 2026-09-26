@@ -60,7 +60,7 @@ docker compose run --rm ai python main.py 25-09-2026        # novidades de um di
 cd ai && python carregar_canonicas.py && uvicorn servidor:app --port 8000
 ```
 
-O pipeline é rodado à mão (não há agendamento). Por padrão, o modelo que escreve as respostas é o da NVIDIA (20–50 s por resposta); com `BEDROCK_MODEL_ID` usa o Claude no Amazon Bedrock, que é o que o deploy da AWS faz ([infra/README.md](infra/README.md)).
+O pipeline é rodado à mão (não há agendamento). Por padrão, os modelos (classificador, resumidor, copiloto e embeddings) são os da NVIDIA. Com `BEDROCK_MODEL_ID`, o classificador, o resumidor e o copiloto passam a usar o Claude no Amazon Bedrock, que é o que o deploy da AWS faz ([infra/README.md](infra/README.md)); com `BEDROCK_EMBEDDING_MODEL_ID`, os embeddings passam ao Titan (ainda desligado no deploy).
 
 As normas-base vêm do Planalto (Lei 14.300, Lei 15.097 — lista em `ai/functions/canonicas.py`) e dos PDFs de resoluções da ANEEL colocados em `ai/data/canonicas/` (o site da ANEEL bloqueia download automático). Na API, `AI_SERVICE_URL` aponta para o serviço; sem ele, o chat cai numa busca por palavra-chave.
 
@@ -78,7 +78,7 @@ As normas-base vêm do Planalto (Lei 14.300, Lei 15.097 — lista em `ai/functio
 ## Pré-requisitos
 
 - Docker e Docker Compose, **ou** Node 24, Python 3.10+ e PostgreSQL 16
-- Uma chave da API da NVIDIA para os modelos do pipeline em `ai/`
+- Uma chave da API da NVIDIA **ou** acesso ao Amazon Bedrock para os modelos do pipeline em `ai/`
 
 ## Licença
 

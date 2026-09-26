@@ -1,6 +1,7 @@
 # ============================================================
-# Energy Start — Classificador (1º LLM) usando a API da NVIDIA
-# Funciona no Colab (chave nos Secrets 🔑) e no VS Code (chave no arquivo .env).
+# Energy Start — Classificador (1º LLM): Claude no Amazon Bedrock ou API da NVIDIA
+# Com BEDROCK_MODEL_ID usa o Bedrock (é o que o deploy na AWS faz). Sem ela, usa a NVIDIA:
+# funciona no Colab (chave nos Secrets 🔑) e no VS Code (chave no arquivo .env).
 # ============================================================
 
 import difflib
@@ -15,6 +16,8 @@ import pandas as pd
 import requests
 from dotenv import load_dotenv
 
+from functions import bedrock
+
 load_dotenv()  # lê NVIDIA_KEY_CLASSIFIER do arquivo .env
 
 # MODELO = "google/diffusiongemma-26b-a4b-it"
@@ -23,6 +26,9 @@ load_dotenv()  # lê NVIDIA_KEY_CLASSIFIER do arquivo .env
 URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 MODELO = "openai/gpt-oss-20b"
 CHAVE = f"Bearer {os.getenv('NVIDIA_KEY_CLASSIFIER', '')}"
+# Espera entre normas: a API gratuita da NVIDIA limita as chamadas por minuto. No Bedrock não
+# precisa (o boto3 espera sozinho quando a cota estoura).
+PAUSA = 0 if bedrock.MODELO else 7
 
 # ------------------------------------------------------------
 # 1. Taxonomia: áreas e subáreas do protótipo
@@ -100,7 +106,7 @@ FORMATO DA RESPOSTA: apenas um objeto JSON, sem texto antes ou depois, sem ```:
 
 
 # ------------------------------------------------------------
-# 3. Chamada à NVIDIA para um texto
+# 3. Chamada ao modelo para um texto
 # ------------------------------------------------------------
 def _ler_json(resposta):
     limpo = re.sub(r"```(?:json)?", "", resposta)
@@ -169,6 +175,11 @@ def chamar_nvidia(mensagens):
     return r.json()["choices"][0]["message"]["content"] or ""
 
 
+def chamar_llm(mensagens):
+    """Claude no Bedrock se BEDROCK_MODEL_ID estiver definida; senão, a API da NVIDIA."""
+    return bedrock.conversar(mensagens, max_tokens=1024) if bedrock.MODELO else chamar_nvidia(mensagens)
+
+
 def classificar_texto(texto, titulo="", max_chars=40000):
     conteudo = (
         f"TÍTULO: {titulo}\n\nTEXTO:\n{texto[:max_chars]}"
@@ -181,7 +192,7 @@ def classificar_texto(texto, titulo="", max_chars=40000):
     ]
     for _ in range(2):  # nova tentativa se o JSON vier quebrado
         try:
-            dados = _ler_json(chamar_nvidia(mensagens))
+            dados = _ler_json(chamar_llm(mensagens))
             pares, brutos = _validar(dados)
             return {
                 "area": sorted({a for a, _ in pares}),
@@ -209,7 +220,7 @@ def classificar_texto(texto, titulo="", max_chars=40000):
 # ------------------------------------------------------------
 # 4. Classificar o DataFrame inteiro
 # ------------------------------------------------------------
-def classificar_df(df, coluna_texto="texto", pausa=7):
+def classificar_df(df, coluna_texto="texto", pausa=PAUSA):
     resultados = []
     for i, (_, linha) in enumerate(df.iterrows(), start=1):
         texto, titulo = str(linha[coluna_texto]), str(linha.get("titulo", ""))

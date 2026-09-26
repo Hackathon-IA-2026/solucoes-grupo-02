@@ -21,6 +21,7 @@ from datetime import date, datetime
 import requests
 from dotenv import load_dotenv
 
+from functions import bedrock
 from functions.embeddings import vetorizar
 from functions.enviar_api import API_URL, CHAVE as CHAVE_INTERNA
 from functions.extractor import BASE, CABECALHO, _interessa, baixar_texto
@@ -29,11 +30,8 @@ from functions.trechos import dividir_em_trechos
 load_dotenv()
 
 # Modelo que escreve a resposta. Com BEDROCK_MODEL_ID (ex.: us.anthropic.claude-haiku-4-5-20251001-v1:0),
-# usa o Claude no Amazon Bedrock — responde em poucos segundos; na AWS as credenciais vêm do papel da
-# task. Sem ela, usa a API gratuita da NVIDIA, que leva de 20 a 50s por resposta.
-BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "").strip()
-AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
-
+# usa o Claude no Amazon Bedrock (functions/bedrock.py) — responde em poucos segundos. Sem ela, usa a
+# API gratuita da NVIDIA, que leva de 20 a 50s por resposta.
 URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 MODELO = "google/gemma-4-31b-it"
 CHAVE = f"Bearer {os.getenv('NVIDIA_KEY_COPILOTO') or os.getenv('NVIDIA_KEY_SUMMARIZER', '')}"
@@ -44,7 +42,8 @@ TOP_K = 8                # trechos que vão para o LLM
 # certos ficaram entre 0,46 e 0,57, e trechos sem relação chegaram a 0,41. Só a similaridade não
 # basta para saber se a base responde (numa pergunta sobre baterias, a lei de eólica offshore deu
 # 0,52), então o LLM também julga: se nenhuma fonte responde, ele devolve SEM_RESPOSTA e o fluxo
-# segue para a busca externa.
+# segue para a busca externa. Calibrado com o embedding da NVIDIA: com o Titan (Bedrock) as
+# similaridades mudam, e o limiar precisa ser recalibrado pelos valores que o _registrar mostra no log.
 LIMIAR = 0.40
 PESO_NOVIDADE = 0.20     # bônus de uma novidade publicada hoje; cai até zero em 1 ano
 BONUS_NORMA = 0.20       # a pergunta citou o número da norma do trecho
@@ -330,51 +329,7 @@ SOBRECARGA = (429, 500, 502, 503, 504, 529)  # a API gratuita da NVIDIA devolve 
 
 def chamar_llm(mensagens: list[dict], max_tokens: int = 1024) -> str:
     """mensagens no formato OpenAI ([{"role": "system"|"user"|"assistant", "content": "..."}])."""
-    return chamar_bedrock(mensagens, max_tokens) if BEDROCK_MODEL_ID else chamar_nvidia(mensagens, max_tokens)
-
-
-_bedrock = None
-
-
-def _cliente_bedrock():
-    global _bedrock
-    if _bedrock is None:
-        import boto3
-        from botocore.config import Config
-
-        # tentativas automáticas com espera quando o Bedrock limita a vazão (ThrottlingException)
-        _bedrock = boto3.client(
-            "bedrock-runtime", region_name=AWS_REGION, config=Config(retries={"max_attempts": 4, "mode": "adaptive"}, read_timeout=120)
-        )
-    return _bedrock
-
-
-def _turnos_bedrock(mensagens: list[dict]) -> tuple[list[dict], list[dict]]:
-    """Formato da API Converse: system separado, e a conversa alternando user/assistant,
-    começando por user (turnos seguidos do mesmo papel são juntados)."""
-    system = [{"text": m["content"]} for m in mensagens if m["role"] == "system"]
-    turnos: list[dict] = []
-    for m in mensagens:
-        if m["role"] not in ("user", "assistant") or not m.get("content"):
-            continue
-        if turnos and turnos[-1]["role"] == m["role"]:
-            turnos[-1]["content"][0]["text"] += "\n\n" + m["content"]
-        else:
-            turnos.append({"role": m["role"], "content": [{"text": m["content"]}]})
-    while turnos and turnos[0]["role"] != "user":
-        turnos.pop(0)
-    return system, turnos
-
-
-def chamar_bedrock(mensagens: list[dict], max_tokens: int = 1024) -> str:
-    system, turnos = _turnos_bedrock(mensagens)
-    resposta = _cliente_bedrock().converse(
-        modelId=BEDROCK_MODEL_ID,
-        system=system,
-        messages=turnos,
-        inferenceConfig={"maxTokens": max_tokens, "temperature": 0},
-    )
-    return "".join(parte.get("text", "") for parte in resposta["output"]["message"]["content"])
+    return bedrock.conversar(mensagens, max_tokens) if bedrock.MODELO else chamar_nvidia(mensagens, max_tokens)
 
 
 def chamar_nvidia(mensagens: list[dict], max_tokens: int = 1024) -> str:

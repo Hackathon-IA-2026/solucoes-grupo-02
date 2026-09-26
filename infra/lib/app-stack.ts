@@ -18,16 +18,16 @@ const APP_PORT = 80;
 // não cria parâmetros SecureString, e o Secrets Manager não está liberado no hackathon).
 const DB_PASSWORD_PARAM = '/grupo02/db-password';
 const JWT_SECRET_PARAM = '/grupo02/jwt-secret';
-// Chave entre a api e o serviço Python (rotas /interno e /ask) e chaves da NVIDIA (classificador,
-// resumidor e embeddings). Também criadas por infra/scripts/setup-secrets.sh.
+// Chave entre a api e o serviço Python (rotas /interno e /ask) e chaves da NVIDIA (embeddings; o
+// classificador e o resumidor usam o Claude no Bedrock). Também criadas por infra/scripts/setup-secrets.sh.
 const INTERNAL_API_KEY_PARAM = '/grupo02/internal-api-key';
 const NVIDIA_KEY_CLASSIFIER_PARAM = '/grupo02/nvidia-key-classifier';
 const NVIDIA_KEY_SUMMARIZER_PARAM = '/grupo02/nvidia-key-summarizer';
 
-// Modelo que escreve as respostas do copiloto no Bedrock (perfil de inferência de us-east-1).
-// Para ver os disponíveis na conta:
+// Modelo do Bedrock que escreve no classificador, no resumidor e no copiloto (perfil de inferência de
+// us-east-1). Para ver os disponíveis na conta:
 //   aws bedrock list-inference-profiles --query "inferenceProfileSummaries[].inferenceProfileId"
-const COPILOTO_MODEL_ID = 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
+const LLM_MODEL_ID = 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
 
 /**
  * Tudo o que roda na AWS:
@@ -113,7 +113,7 @@ export class AppStack extends cdk.Stack {
         });
         fileSystem.grantReadWrite(taskDefinition.taskRole);
 
-        // Para o copiloto chamar os modelos do Bedrock (Claude) com o papel da task.
+        // Para o Python chamar os modelos do Bedrock (Claude, e o Titan se for ligado) com o papel da task.
         taskDefinition.addToTaskRolePolicy(
             new iam.PolicyStatement({
                 actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream', 'bedrock:Converse', 'bedrock:ConverseStream'],
@@ -190,8 +190,8 @@ export class AppStack extends cdk.Stack {
 
         // ── Container: copiloto (Python, ai/) ───────────────────────────────
         // Serviço que responde o chat (POST /ask): busca os trechos na api e escreve a resposta
-        // com o Claude no Bedrock. Tem as chaves do pipeline também, então é por ele que se roda
-        // a coleta à mão: scripts/shell.sh copiloto  ->  python main.py 25-09-2026
+        // com o Claude no Bedrock. Tem a configuração do pipeline também, então é por ele que se
+        // roda a coleta à mão: scripts/shell.sh copiloto  ->  python main.py 25-09-2026
         const copiloto = taskDefinition.addContainer('copiloto', {
             image: ecs.ContainerImage.fromAsset(path.join(__dirname, '../../ai'), { platform: Platform.LINUX_ARM64 }),
             command: ['uvicorn', 'servidor:app', '--host', '0.0.0.0', '--port', '8000'],
@@ -203,7 +203,10 @@ export class AppStack extends cdk.Stack {
                 // A api fica na porta 80, sob /api (ela também serve o web na mesma porta).
                 API_URL: `http://localhost:${APP_PORT}/api`,
                 AWS_REGION: this.region,
-                BEDROCK_MODEL_ID: COPILOTO_MODEL_ID,
+                BEDROCK_MODEL_ID: LLM_MODEL_ID,
+                // Embeddings ainda na NVIDIA. Para passar ao Titan no Bedrock, descomente a linha abaixo e,
+                // logo depois do deploy, vetorize a base de novo (infra/README.md, passo 8).
+                // BEDROCK_EMBEDDING_MODEL_ID: 'amazon.titan-embed-text-v2:0',
             },
             secrets: {
                 INTERNAL_API_KEY: internalApiKey,

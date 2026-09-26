@@ -36,7 +36,7 @@ if __name__ == "__main__":
         f"./data/out/law_day_final_{data}.csv", index=False
     )
 
-    # Vetores dos trechos de cada norma, para o copiloto achá-los (fora do CSV: são 1024 números por trecho)
+    # Vetores dos trechos de cada norma, para o copiloto achá-los (fora do CSV: são centenas de números por trecho)
     df_final = vetorizar_df(df_final)
 
     # Grava na API: normas, trechos e limites, e dispara os alertas de cada empresa.

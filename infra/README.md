@@ -62,13 +62,21 @@ Anote no fim deste arquivo tudo o que for diferente do esperado.
    ```bash
    infra/scripts/shell.sh copiloto
    python carregar_canonicas.py        # normas-base (uma vez; ~10 s)
-   python main.py 25-09-2026           # novidades de um dia do DOU (5–10 min; sem data = hoje)
+   python main.py 25-09-2026           # novidades de um dia do DOU (sem data = hoje)
    ```
-   Depois pergunte algo no Copiloto do site. O modelo que responde está em `COPILOTO_MODEL_ID`
-   ([lib/app-stack.ts](lib/app-stack.ts)); confira se ele existe na conta com
+   Depois pergunte algo no Copiloto do site. O Claude que escreve no classificador, no resumidor e no
+   copiloto está em `LLM_MODEL_ID` ([lib/app-stack.ts](lib/app-stack.ts)); confira se ele existe na conta com
    `aws bedrock list-inference-profiles --query "inferenceProfileSummaries[].inferenceProfileId"`.
    Se a resposta vier genérica ("Encontrei N trechos…"), o copiloto falhou e a api caiu na busca por
    palavra-chave: `scripts/logs.sh copiloto`.
+
+   **Embeddings no Bedrock (Titan):** por enquanto os embeddings são da NVIDIA. Para trocar, confira que o
+   modelo existe (`aws bedrock list-foundation-models --by-output-modality EMBEDDING --query "modelSummaries[].modelId"`),
+   descomente `BEDROCK_EMBEDDING_MODEL_ID` no container copiloto ([lib/app-stack.ts](lib/app-stack.ts)) e faça o
+   deploy. Os vetores do modelo antigo ficam fora da busca: logo em seguida, rode de novo
+   `python carregar_canonicas.py` e `python main.py <dia>` para cada dia já coletado (a API troca os trechos
+   das normas que já existem). Depois recalibre o `LIMIAR` de [ai/models/copiloto.py](../ai/models/copiloto.py)
+   pelas similaridades que aparecem em `scripts/logs.sh copiloto`.
 
 ## Quando der errado
 
@@ -85,7 +93,9 @@ Anote no fim deste arquivo tudo o que for diferente do esperado.
 | `ResourceInitializationError` com `ssm` / `secrets` | Faltou `setup-secrets.sh` ou o execution role não lê o parâmetro |
 | Navegador fica carregando até dar timeout | Security group da porta 80 ou IP errado (ele muda a cada task: `scripts/url.sh`) |
 | Página abre, mas login dá erro | `scripts/logs.sh api` (erro de banco? `DB_*`/senha) |
-| Copiloto responde "Encontrei N trechos…" em vez de texto | `scripts/logs.sh copiloto`: `AccessDeniedException`/`ValidationException` do Bedrock = `COPILOTO_MODEL_ID` errado ou sem acesso; `401` = `INTERNAL_API_KEY` |
+| Copiloto responde "Encontrei N trechos…" em vez de texto | `scripts/logs.sh copiloto`: `O Bedrock recusou o modelo` = `LLM_MODEL_ID` (ou o de embedding, se ligado) errado ou sem acesso; `401` = `INTERNAL_API_KEY` |
+| Pipeline para com `O Bedrock recusou o modelo` | O mesmo: confira o modelo citado na mensagem com os comandos do passo 8 |
+| Copiloto não acha nada depois de trocar o modelo de embedding | Faltou vetorizar a base de novo (passo 8) |
 | `password authentication failed` | O parâmetro `/grupo02/db-password` foi trocado depois que o banco foi criado |
 | Qualquer coisa estranha | `echo $AWS_REGION` tem que ser `us-east-1` |
 
