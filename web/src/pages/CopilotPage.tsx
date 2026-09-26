@@ -160,6 +160,11 @@ export function CopilotPage() {
                           >
                             <b className="mb-1 block text-[12.8px] text-ink">{c.label}</b>
                             {c.excerpt}
+                            {c.url && (
+                              <a href={c.url} target="_blank" rel="noopener noreferrer" className="mt-2 block text-[12.8px] font-semibold text-brand hover:underline">
+                                Abrir documento original ↗
+                              </a>
+                            )}
                           </div>
                         ))}
                     </>

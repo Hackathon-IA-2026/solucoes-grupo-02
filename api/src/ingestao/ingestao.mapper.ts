@@ -241,6 +241,7 @@ export function mapearNorma(linha: Linha, hoje = new Date()): NormaMapeada | { e
                 .update(texto ?? link!)
                 .digest('hex'),
             textoCompleto: texto,
+            canonica: linha.canonica === true,
         },
         extracao: resumo || modelo ? { resumo, modelo, tokensGastos } : undefined,
         limites,

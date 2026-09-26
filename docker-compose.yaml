@@ -23,22 +23,35 @@ services:
         environment:
             DB_HOST: db
             DB_PORT: 5432
-            PORT: 3000
+            PORT: 3333
+            AI_SERVICE_URL: "http://copiloto:8000"
         ports:
-            - "3333:3000"
+            - "3333:3333"
         depends_on:
             db:
                 condition: service_healthy
 
+    # Pipeline: coleta o DOU, classifica, resume e grava na API (roda e termina).
+    # Coletar um dia específico: docker compose run --rm ai python main.py 25-09-2026
     ai:
         build: ./ai
         env_file: ./.env
         environment:
-            API_URL: "http://api:3000"
+            API_URL: "http://api:3333"
         volumes:
             - shared_storage:/app/storage
         depends_on:
             - api
+
+    # Copiloto (3º LLM): a API chama POST /ask; ele busca os trechos na API e responde.
+    # Carga das normas canônicas (uma vez): docker compose run --rm ai python carregar_canonicas.py
+    copiloto:
+        build: ./ai
+        command: ["uvicorn", "servidor:app", "--host", "0.0.0.0", "--port", "8000"]
+        env_file: ./.env
+        environment:
+            API_URL: "http://api:3333"
+        restart: unless-stopped
 
     web:
         build: ./web

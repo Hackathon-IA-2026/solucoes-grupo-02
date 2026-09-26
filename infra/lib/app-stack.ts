@@ -18,12 +18,24 @@ const APP_PORT = 80;
 // não cria parâmetros SecureString, e o Secrets Manager não está liberado no hackathon).
 const DB_PASSWORD_PARAM = '/grupo02/db-password';
 const JWT_SECRET_PARAM = '/grupo02/jwt-secret';
+// Chave entre a api e o serviço Python (rotas /interno e /ask) e chaves da NVIDIA (classificador,
+// resumidor e embeddings). Também criadas por infra/scripts/setup-secrets.sh.
+const INTERNAL_API_KEY_PARAM = '/grupo02/internal-api-key';
+const NVIDIA_KEY_CLASSIFIER_PARAM = '/grupo02/nvidia-key-classifier';
+const NVIDIA_KEY_SUMMARIZER_PARAM = '/grupo02/nvidia-key-summarizer';
+
+// Modelo que escreve as respostas do copiloto no Bedrock (perfil de inferência de us-east-1).
+// Para ver os disponíveis na conta:
+//   aws bedrock list-inference-profiles --query "inferenceProfileSummaries[].inferenceProfileId"
+const COPILOTO_MODEL_ID = 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
 
 /**
  * Tudo o que roda na AWS:
  *
  *   Navegador ──:80──▶ Task Fargate (IP público)
  *                        ├─ container "api"      NestJS + build do web (infra/docker/app.Dockerfile)
+ *                        ├─ container "copiloto" Python (ai/): responde o chat (Claude no Bedrock); é
+ *                        │                       também onde se roda o pipeline à mão (scripts/shell.sh copiloto)
  *                        └─ container "postgres" fala com a api por localhost:5432
  *                                 └─ dados em um disco EFS, que sobrevive a reinícios da task
  *
@@ -80,8 +92,8 @@ export class AppStack extends cdk.Stack {
         //   - execution role: usado pelo ECS para baixar a imagem, ler os segredos e gravar logs
         //   - task role:      usado pelo NOSSO código (Bedrock, EFS, S3...)
         const taskDefinition = new ecs.FargateTaskDefinition(this, 'Task', {
-            cpu: 512, // 0,5 vCPU, somando os dois containers
-            memoryLimitMiB: 1024,
+            cpu: 1024, // 1 vCPU, somando os containers (o pipeline, quando roda, usa pandas e embeddings)
+            memoryLimitMiB: 2048,
             runtimePlatform: {
                 cpuArchitecture: ecs.CpuArchitecture.X86_64,
                 operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
@@ -99,7 +111,7 @@ export class AppStack extends cdk.Stack {
         });
         fileSystem.grantReadWrite(taskDefinition.taskRole);
 
-        // Para o copiloto chamar modelos do Bedrock a partir da api.
+        // Para o copiloto chamar os modelos do Bedrock (Claude) com o papel da task.
         taskDefinition.addToTaskRolePolicy(
             new iam.PolicyStatement({
                 actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream', 'bedrock:Converse', 'bedrock:ConverseStream'],
@@ -112,6 +124,15 @@ export class AppStack extends cdk.Stack {
         );
         const jwtSecret = ecs.Secret.fromSsmParameter(
             ssm.StringParameter.fromSecureStringParameterAttributes(this, 'JwtSecret', { parameterName: JWT_SECRET_PARAM }),
+        );
+        const internalApiKey = ecs.Secret.fromSsmParameter(
+            ssm.StringParameter.fromSecureStringParameterAttributes(this, 'InternalApiKey', { parameterName: INTERNAL_API_KEY_PARAM }),
+        );
+        const nvidiaKeyClassifier = ecs.Secret.fromSsmParameter(
+            ssm.StringParameter.fromSecureStringParameterAttributes(this, 'NvidiaKeyClassifier', { parameterName: NVIDIA_KEY_CLASSIFIER_PARAM }),
+        );
+        const nvidiaKeySummarizer = ecs.Secret.fromSsmParameter(
+            ssm.StringParameter.fromSecureStringParameterAttributes(this, 'NvidiaKeySummarizer', { parameterName: NVIDIA_KEY_SUMMARIZER_PARAM }),
         );
 
         // ── Container: Postgres ─────────────────────────────────────────────
@@ -156,12 +177,40 @@ export class AppStack extends cdk.Stack {
                 // Não há migrations no repo: o TypeORM cria/ajusta as tabelas ao subir.
                 DB_SYNCHRONIZE: 'true',
                 AWS_REGION: this.region,
+                // O copiloto está na mesma task: a api fala com ele por localhost.
+                AI_SERVICE_URL: 'http://localhost:8000',
             },
-            secrets: { DB_PASSWORD: dbPassword, JWT_SECRET: jwtSecret },
+            secrets: { DB_PASSWORD: dbPassword, JWT_SECRET: jwtSecret, INTERNAL_API_KEY: internalApiKey },
             logging: ecs.LogDrivers.awsLogs({ logGroup, streamPrefix: 'api' }),
         });
         // Só inicia a api depois que o Postgres responder ao health check.
         api.addContainerDependencies({ container: postgres, condition: ecs.ContainerDependencyCondition.HEALTHY });
+
+        // ── Container: copiloto (Python, ai/) ───────────────────────────────
+        // Serviço que responde o chat (POST /ask): busca os trechos na api e escreve a resposta
+        // com o Claude no Bedrock. Tem as chaves do pipeline também, então é por ele que se roda
+        // a coleta à mão: scripts/shell.sh copiloto  ->  python main.py 25-09-2026
+        const copiloto = taskDefinition.addContainer('copiloto', {
+            image: ecs.ContainerImage.fromAsset(path.join(__dirname, '../../ai'), { platform: Platform.LINUX_AMD64 }),
+            command: ['uvicorn', 'servidor:app', '--host', '0.0.0.0', '--port', '8000'],
+            // Se cair, a api responde o chat por palavra-chave e o resto continua no ar;
+            // o ECS reinicia só este container.
+            essential: false,
+            enableRestartPolicy: true,
+            environment: {
+                // A api fica na porta 80, sob /api (ela também serve o web na mesma porta).
+                API_URL: `http://localhost:${APP_PORT}/api`,
+                AWS_REGION: this.region,
+                BEDROCK_MODEL_ID: COPILOTO_MODEL_ID,
+            },
+            secrets: {
+                INTERNAL_API_KEY: internalApiKey,
+                NVIDIA_KEY_CLASSIFIER: nvidiaKeyClassifier,
+                NVIDIA_KEY_SUMMARIZER: nvidiaKeySummarizer,
+            },
+            logging: ecs.LogDrivers.awsLogs({ logGroup, streamPrefix: 'copiloto' }),
+        });
+        copiloto.addContainerDependencies({ container: api, condition: ecs.ContainerDependencyCondition.START });
 
         // ── Service ─────────────────────────────────────────────────────────
         // O service mantém a task rodando: se ela morrer, o ECS sobe outra.

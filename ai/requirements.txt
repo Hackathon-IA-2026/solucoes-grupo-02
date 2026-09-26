@@ -6,6 +6,9 @@ requests>=2.31         # coletor diário do DOU e chamadas à API da NVIDIA
 pdfplumber>=0.10       # leitura dos PDFs das normas (pré-processamento)
 openai>=1.30           # cliente compatível com OpenAI (versão alternativa do classificador)
 python-dotenv>=1.0     # lê a chave da API do arquivo .env, fora do código
+fastapi>=0.115         # serviço do copiloto (POST /ask), chamado pela API
+uvicorn>=0.30          # servidor do serviço do copiloto
+boto3>=1.35            # Claude no Amazon Bedrock para o copiloto (opcional: BEDROCK_MODEL_ID)
 
 # Opcional — só para a comparação com o classificador zero-shot do Hugging Face (pesado, instala o PyTorch)
 # transformers>=4.40

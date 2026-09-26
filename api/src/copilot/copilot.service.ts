@@ -9,6 +9,12 @@ export interface CopilotCitation {
     label: string;
     excerpt: string;
     normId?: string;
+    url?: string;
+}
+
+export interface TurnoDaConversa {
+    role: 'user' | 'assistant';
+    content: string;
 }
 
 export interface CopilotAnswer {
@@ -42,11 +48,16 @@ function textoParaHtml(texto: string): string {
         .join('');
 }
 
+// O front abre o link da citação: só http(s), nunca `javascript:` vindo do serviço de IA.
+function linkSeguro(v: unknown): string | undefined {
+    return typeof v === 'string' && /^https?:\/\//i.test(v) ? v : undefined;
+}
+
 function lerCitacoes(v: unknown): CopilotCitation[] {
     if (!Array.isArray(v)) return [];
     return v.flatMap((c: Record<string, unknown>) =>
         typeof c?.label === 'string' && typeof c?.excerpt === 'string'
-            ? [{ label: c.label, excerpt: c.excerpt, normId: typeof c.normId === 'string' ? c.normId : undefined }]
+            ? [{ label: c.label, excerpt: c.excerpt, normId: typeof c.normId === 'string' ? c.normId : undefined, url: linkSeguro(c.url) }]
             : [],
     );
 }
@@ -62,24 +73,25 @@ export class CopilotService {
         private readonly config: ConfigService,
     ) {}
 
-    async ask(question: string, companyId: string): Promise<CopilotAnswer> {
-        return (await this.perguntarAoServicoDeIa(question, companyId)) ?? (await this.buscarPorPalavraChave(question));
+    async ask(question: string, companyId: string, historico: TurnoDaConversa[] = []): Promise<CopilotAnswer> {
+        return (await this.perguntarAoServicoDeIa(question, companyId, historico)) ?? (await this.buscarPorPalavraChave(question));
     }
 
     // Com AI_SERVICE_URL no .env, a pergunta vai pro microsserviço Python de RAG junto
     // com o perfil da usina (o "Envia perfil do cliente e dúvida" do diagrama).
-    // Contrato: POST {AI_SERVICE_URL}/ask {question, perfil} -> {answer, citations}.
+    // Contrato: POST {AI_SERVICE_URL}/ask {question, perfil, historico} -> {answer, citations} (ai/servidor.py),
+    // com a mesma chave interna das rotas /interno — cada pergunta gasta chamadas de LLM.
     // Se o serviço não estiver configurado ou falhar, cai na busca por palavra-chave.
-    private async perguntarAoServicoDeIa(question: string, companyId: string): Promise<CopilotAnswer | null> {
+    private async perguntarAoServicoDeIa(question: string, companyId: string, historico: TurnoDaConversa[]): Promise<CopilotAnswer | null> {
         const base = this.config.get<string>('AI_SERVICE_URL');
         if (!base) return null;
         try {
             const perfil = toPlantResponse(await this.plantService.getPlant(companyId));
             const res = await fetch(`${base.replace(/\/+$/, '')}/ask`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question, perfil }),
-                signal: AbortSignal.timeout(60_000),
+                headers: { 'Content-Type': 'application/json', 'x-internal-key': this.config.get<string>('INTERNAL_API_KEY', '') },
+                body: JSON.stringify({ question, perfil, historico }),
+                signal: AbortSignal.timeout(180_000), // a API gratuita da NVIDIA leva de 20 a 50s por resposta; a busca externa faz 2 chamadas
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = (await res.json()) as { answer?: unknown; citations?: unknown };
@@ -101,7 +113,7 @@ export class CopilotService {
             trechos.map(async (t): Promise<CopilotCitation> => {
                 const norma = await this.normaService.getById(t.normaId).catch(() => null);
                 const label = [norma?.code ?? norma?.title, t.artigo].filter(Boolean).join(', ');
-                return { label: label || 'Trecho relacionado', excerpt: t.texto, normId: t.normaId };
+                return { label: label || 'Trecho relacionado', excerpt: t.texto, normId: t.normaId, url: linkSeguro(norma?.url) };
             }),
         );
         // Um artigo longo vira mais de um trecho com o mesmo rótulo — o front usa o rótulo como chave.

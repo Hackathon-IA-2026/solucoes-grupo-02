@@ -20,7 +20,14 @@ export class TrechoController {
 
     @Post('search')
     async search(@Body('vetor') vetor: number[], @Body('limit') limit?: number) {
-        return await this.trechoService.search(vetor, limit);
+        const semelhantes = await this.trechoService.buscarSemelhantes(vetor, limit);
+        return semelhantes.map(({ trecho, similaridade }) => ({
+            id: trecho.id,
+            normaId: trecho.normaId,
+            artigo: trecho.artigo,
+            texto: trecho.texto,
+            similaridade,
+        }));
     }
 
     @Get(':id')

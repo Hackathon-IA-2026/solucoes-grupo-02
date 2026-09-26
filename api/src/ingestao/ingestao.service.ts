@@ -5,6 +5,7 @@ import { ExtracaoEntity } from '../extracao/entities/extracao.entity';
 import { LimiteEntity } from '../limite/entities/limite.entity';
 import { TrechoEntity } from '../trecho/entities/trecho.entity';
 import { AlertEngineService } from '../alerta/alert-engine.service';
+import { TrechoService } from '../trecho/trecho.service';
 import { IngestaoDto } from './dto/ingestao.dto';
 import { mapearNorma, NormaMapeada } from './ingestao.mapper';
 
@@ -12,6 +13,7 @@ export interface ResultadoIngestao {
     recebidas: number;
     criadas: number;
     duplicadas: number;
+    reindexadas: number; // duplicadas que chegaram com trechos vetorizados e tiveram os trechos trocados
     rejeitadas: Array<{ indice: number; motivo: string }>;
     alertas: number;
 }
@@ -23,10 +25,18 @@ export class IngestaoService {
     constructor(
         private readonly dataSource: DataSource,
         private readonly alertEngine: AlertEngineService,
+        private readonly trechoService: TrechoService,
     ) {}
 
     async ingerir(dto: IngestaoDto): Promise<ResultadoIngestao> {
-        const resultado: ResultadoIngestao = { recebidas: dto.normas.length, criadas: 0, duplicadas: 0, rejeitadas: [], alertas: 0 };
+        const resultado: ResultadoIngestao = {
+            recebidas: dto.normas.length,
+            criadas: 0,
+            duplicadas: 0,
+            reindexadas: 0,
+            rejeitadas: [],
+            alertas: 0,
+        };
         const novas: NormaEntity[] = [];
 
         for (const [indice, linha] of dto.normas.entries()) {
@@ -36,9 +46,10 @@ export class IngestaoService {
                 continue;
             }
             try {
-                const norma = await this.salvar(mapeada);
-                if (norma) novas.push(norma);
+                const salvo = await this.salvar(mapeada);
+                if (salvo.norma) novas.push(salvo.norma);
                 else resultado.duplicadas++;
+                if (salvo.reindexada) resultado.reindexadas++;
             } catch (err) {
                 this.logger.error(`Falha ao salvar a norma ${indice} ("${mapeada.norma.code}"): ${(err as Error).message}`);
                 resultado.rejeitadas.push({ indice, motivo: 'erro ao salvar no banco' });
@@ -46,20 +57,38 @@ export class IngestaoService {
         }
 
         resultado.criadas = novas.length;
-        resultado.alertas = (await this.alertEngine.aposIngestao(novas)).length;
+        // trechos novos: a próxima busca do copiloto recarrega o índice de vetores
+        if (novas.length || resultado.reindexadas) this.trechoService.invalidarIndice();
+        // norma canônica é base do copiloto, não novidade: não gera alerta de "norma nova"
+        resultado.alertas = (await this.alertEngine.aposIngestao(novas.filter((n) => !n.canonica))).length;
         this.logger.log(
-            `Ingestão: ${resultado.criadas} nova(s), ${resultado.duplicadas} duplicada(s), ${resultado.rejeitadas.length} rejeitada(s), ${resultado.alertas} alerta(s).`,
+            `Ingestão: ${resultado.criadas} nova(s), ${resultado.duplicadas} duplicada(s) (${resultado.reindexadas} reindexada(s)), ` +
+                `${resultado.rejeitadas.length} rejeitada(s), ${resultado.alertas} alerta(s).`,
         );
         return resultado;
     }
 
     // Norma + extração + limites + trechos numa transação só: se algo falhar no meio,
     // não sobra norma "pela metade" que a próxima coleta consideraria duplicada.
-    private async salvar({ norma, extracao, limites, trechos }: NormaMapeada): Promise<NormaEntity | null> {
+    // Norma que já existe é ignorada — a não ser que chegue com trechos vetorizados: aí os
+    // trechos dela são trocados (normas gravadas antes do copiloto ganham vetores, e rodar
+    // de novo a carga das canônicas com outro modelo de embedding atualiza a base).
+    private async salvar({ norma, extracao, limites, trechos }: NormaMapeada): Promise<{ norma?: NormaEntity; reindexada?: boolean }> {
         return await this.dataSource.transaction(async (m) => {
             const mesma: FindOptionsWhere<NormaEntity>[] = [{ hash: norma.hash }];
             if (norma.url) mesma.push({ url: norma.url });
-            if (await m.exists(NormaEntity, { where: mesma })) return null;
+            const existente = await m.findOne(NormaEntity, { where: mesma, select: { id: true } });
+            if (existente) {
+                if (!trechos.some((t) => t.vetor?.length)) return {};
+                await m.delete(TrechoEntity, { normaId: existente.id });
+                await m.save(
+                    m.create(
+                        TrechoEntity,
+                        trechos.map((t) => ({ ...t, normaId: existente.id, vetor: t.vetor ?? [] })),
+                    ),
+                );
+                return { reindexada: true };
+            }
 
             const salva = await m.save(m.create(NormaEntity, norma));
             const extracaoSalva = extracao
@@ -81,7 +110,7 @@ export class IngestaoService {
                     ),
                 );
             }
-            return salva;
+            return { norma: salva };
         });
     }
 }

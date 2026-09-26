@@ -52,6 +52,11 @@ export class NormaEntity extends BaseEntity {
 
     // Campos "de ingestão", como documentado em ENDPOINTS.md — preenchidos pelo
     // pipeline de coleta/extração quando ele existir.
+    // Norma-base em vigor (Lei 14.300, REN 1.000...) carregada para o copiloto consultar:
+    // não aparece no radar de novidades e não gera alerta de "norma nova".
+    @Column({ default: false })
+    canonica!: boolean;
+
     @Column({ nullable: true })
     orgao?: string;
 

@@ -12,4 +12,6 @@ __pycache__/
 .venv/
 
 # Saídas do pipeline de IA (CSVs com o texto completo das normas)
-ai/data/
+ai/data/*
+# ...menos os PDFs das normas-base do copiloto (carregar_canonicas.py)
+!ai/data/canonicas/

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { BaseService } from '../base.service';
 import { NormaEntity, NormaSource } from './entities/norma.entity';
 import { CreateNormaDto } from './dto/create-norma.dto';
@@ -43,6 +43,7 @@ export function toNormResponse(norma: NormaEntity) {
             .filter(Boolean),
         why: norma.why ?? '',
         url: norma.url,
+        canonica: norma.canonica,
     };
 }
 
@@ -62,12 +63,28 @@ export class NormaService extends BaseService<NormaEntity> {
     // Com `perfil`, devolve só as normas das áreas/subáreas que a empresa monitora
     // (o feed "do setor de escolha do usuário"). Sem área marcada no perfil, devolve tudo.
     async list(source?: NormaSource, perfil?: Pick<PlantEntity, 'areas' | 'subareas'>): Promise<NormaEntity[]> {
+        // normas canônicas são a base do copiloto, não novidades: ficam fora do feed
         const normas = await this.findAllInstances({
-            where: source ? { source } : undefined,
+            where: { canonica: false, ...(source ? { source } : {}) },
             order: { publishedAt: 'DESC', createdAt: 'DESC' },
         });
         if (!perfil?.areas?.length) return normas;
         return normas.filter((n) => assuntosMonitorados(n, perfil).length > 0);
+    }
+
+    // "14300" acha a Lei nº 14.300 (o número é guardado com ponto, como no título).
+    async findIdsByNumeros(digitos: string[]): Promise<string[]> {
+        if (!digitos.length) return [];
+        const normas = await this.repository
+            .createQueryBuilder('n')
+            .select('n.id')
+            .where("REPLACE(n.numero, '.', '') IN (:...digitos)", { digitos })
+            .getMany();
+        return normas.map((n) => n.id);
+    }
+
+    async getByIds(ids: string[]): Promise<NormaEntity[]> {
+        return ids.length ? await this.repository.findBy({ id: In(ids) }) : [];
     }
 
     async getById(id: string): Promise<NormaEntity> {

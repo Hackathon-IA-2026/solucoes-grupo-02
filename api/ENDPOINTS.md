@@ -23,7 +23,7 @@
 - POST /trechos - Cria um trecho (`normaId`, `artigo?`, `ordem?`, `texto`, `vetor?`). Usado pelo pipeline de extração pra popular a base vetorial.
 - GET /trechos?normaId=uuid - Lista os trechos de uma norma, em ordem.
 - GET /trechos/:id - Busca um trecho pelo id.
-- POST /trechos/search - Busca por similaridade (`vetor`, `limit?`). Sem a extensão pgvector no Postgres do docker-compose, a comparação é feita em memória (cosseno) — trocar por `vector <-> vector` se a extensão for habilitada.
+- POST /trechos/search - Busca por similaridade (`vetor`, `limit?`), devolvendo `similaridade`. Sem a extensão pgvector, a comparação é feita num índice em memória (`IndiceVetorial`), carregado na primeira busca e descartado a cada ingestão.
 - DELETE /trechos/:id - Remove um trecho.
 
 ## Equipe da empresa (/user) — só admins
@@ -65,7 +65,13 @@ E-mail: com `frequency = "Imediato"` o e-mail sai na hora. Com `"Resumo diário"
 - GET /chat/:sessionId/messages - Carrega as mensagens de um chat específico.
 - POST /chat/:sessionId/message - Salva a pergunta, gera a resposta e salva a resposta, devolve pro front.
 
-> Com `AI_SERVICE_URL` no `.env`, a pergunta vai para o microsserviço Python de RAG: `POST {AI_SERVICE_URL}/ask` com `{ "question": "...", "perfil": { ...mesmo formato de GET /plants/me } }`, esperando `{ "answer": "texto (markdown simples: **negrito** e listas com -)", "citations": [{ "label": "REN 1.000/2021, art. 5º", "excerpt": "trecho literal", "normId": "uuid?" }] }`. A API converte `answer` em HTML escapado (o LLM lê texto externo e não pode injetar HTML no front).
+> Com `AI_SERVICE_URL` no `.env`, a pergunta vai para o copiloto (`ai/servidor.py` + `ai/models/copiloto.py`): `POST {AI_SERVICE_URL}/ask` com o header `x-internal-key` e `{ "question": "...", "perfil": { ...GET /plants/me }, "historico": [{ "role": "user"|"assistant", "content": "..." }] }` (as 6 últimas mensagens da conversa), esperando `{ "answer": "texto com [n]", "citations": [{ "label": "[1] Lei nº 14.300/2022, Art. 26", "excerpt": "trecho", "normId": "uuid?", "url": "link oficial" }] }`. A API converte `answer` em HTML escapado (o LLM lê texto externo e não pode injetar HTML no front) e só repassa links `http(s)`.
+>
+> Fluxo do copiloto (uma busca só):
+> 1. vetoriza a pergunta (`nvidia/nemotron-3-embed-1b`, 1024 dimensões) e chama `POST /interno/trechos/busca`: normas canônicas e novidades juntas, mais os trechos das normas e artigos citados na pergunta ("art. 26 da Lei 14.300");
+> 2. ranqueia: similaridade × (1 + 0,20 × recência da novidade, que zera em 1 ano) + bônus da norma (0,20) e do artigo (0,25) citados; se uma novidade cita uma canônica, traz 2 trechos dela junto;
+> 3. manda ao LLM (`google/gemma-4-31b-it`) os trechos com similaridade ≥ 0,40; se nenhum passa, ou se o LLM julga que nenhum responde (`SEM_RESPOSTA`), busca no DOU (expressões entre aspas, Seção 1, órgãos de energia), lê as publicações e repete o processo;
+> 4. a resposta cita cada afirmação com [n]; `citations` traz só as fontes usadas, com trecho e link.
 >
 > Sem `AI_SERVICE_URL`, ou se o serviço falhar, a resposta é a busca por palavra-chave nos `trechos` (`TrechoService.searchByText`, ignorando acentos).
 
@@ -111,7 +117,13 @@ Colunas lidas de cada linha (as demais são ignoradas; todas opcionais, menos `t
 | `trechos` (`artigo?`, `texto`, `vetor?`) | `trechos` com embedding; sem essa coluna, a API quebra o `texto` por artigo, sem vetor |
 | `modelo`, `tokens_gastos` | `extracoes` |
 
-Resposta: `{ "recebidas": 3, "criadas": 2, "duplicadas": 0, "rejeitadas": [{ "indice": 2, "motivo": "sem \"titulo\"" }], "alertas": 2 }`.
+Colunas extras aceitas: `canonica: true` marca a norma-base do copiloto (fica fora do radar de novidades e não gera alerta de "norma nova"). Norma que já existe é ignorada, a não ser que chegue com `trechos` vetorizados: aí os trechos dela são trocados (`reindexadas`).
+
+Resposta: `{ "recebidas": 3, "criadas": 2, "duplicadas": 0, "reindexadas": 0, "rejeitadas": [{ "indice": 2, "motivo": "sem \"titulo\"" }], "alertas": 2 }`.
+
+### POST /interno/trechos/busca
+
+Busca vetorial do copiloto: `{ "vetor": [...], "limite?": 20, "numeros?": ["14300"], "artigos?": ["26"], "somenteReferencias?": false }`. Devolve os trechos mais parecidos (canônicas e novidades juntas) e, se `numeros` vier, os mais parecidos de cada norma citada e os dos `artigos` citados, cada um com `similaridade` e a norma (`id`, `code`, `title`, `numero`, `url`, `source`, `publishedAt`, `canonica`).
 
 ### Planejadas (ainda não implementadas)
 

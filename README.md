@@ -47,6 +47,23 @@ cd ai  && pip install -r requirements.txt && python main.py
 
 Testes da API: `cd api && npx jest`.
 
+### Copiloto
+
+O copiloto (`ai/servidor.py`) responde com base nas normas da base — as **canônicas** (normas-base em vigor) e as **novidades** que o pipeline traz do DOU — e, quando a base não responde, busca no próprio DOU. Cada afirmação sai com a fonte [n], o trecho e o link oficial.
+
+```bash
+# no docker-compose (o serviço "copiloto" já sobe com o compose)
+docker compose run --rm ai python carregar_canonicas.py     # normas-base (uma vez; rodar de novo atualiza)
+docker compose run --rm ai python main.py 25-09-2026        # novidades de um dia do DOU (sem data = hoje)
+
+# sem Docker
+cd ai && python carregar_canonicas.py && uvicorn servidor:app --port 8000
+```
+
+O pipeline é rodado à mão (não há agendamento). Por padrão, o modelo que escreve as respostas é o da NVIDIA (20–50 s por resposta); com `BEDROCK_MODEL_ID` usa o Claude no Amazon Bedrock, que é o que o deploy da AWS faz ([infra/README.md](infra/README.md)).
+
+As normas-base vêm do Planalto (Lei 14.300, Lei 15.097 — lista em `ai/functions/canonicas.py`) e dos PDFs de resoluções da ANEEL colocados em `ai/data/canonicas/` (o site da ANEEL bloqueia download automático). Na API, `AI_SERVICE_URL` aponta para o serviço; sem ele, o chat cai numa busca por palavra-chave.
+
 ### Variáveis de ambiente principais
 
 | Variável | Para quê |

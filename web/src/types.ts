@@ -66,6 +66,7 @@ export interface Citation {
     label: string;
     excerpt: string;
     normId?: string;
+    url?: string; // documento oficial (DOU, ANEEL, Planalto)
 }
 
 export interface CopilotAnswer {

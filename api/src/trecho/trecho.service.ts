@@ -5,6 +5,7 @@ import { BaseService } from '../base.service';
 import { TrechoEntity } from './entities/trecho.entity';
 import { CreateTrechoDto } from './dto/create-trecho.dto';
 import { normalizar } from '../utils/texto';
+import { IndiceVetorial, Referencias, TrechoSemelhante } from './indice-vetorial';
 
 // Palavras que não dizem nada do tema da pergunta (já sem acento, como sai do `normalizar`).
 const PALAVRAS_VAZIAS = new Set(
@@ -13,20 +14,6 @@ const PALAVRAS_VAZIAS = new Set(
         'preciso posso devo fazer quando onde norma regra ate tem ser sao foi mais muito'
     ).split(' '),
 );
-
-function cosineSimilarity(a: number[], b: number[]): number {
-    if (a.length === 0 || b.length === 0 || a.length !== b.length) return 0;
-    let dot = 0;
-    let normA = 0;
-    let normB = 0;
-    for (let i = 0; i < a.length; i++) {
-        dot += a[i] * b[i];
-        normA += a[i] * a[i];
-        normB += b[i] * b[i];
-    }
-    if (normA === 0 || normB === 0) return 0;
-    return dot / (Math.sqrt(normA) * Math.sqrt(normB));
-}
 
 @Injectable()
 export class TrechoService extends BaseService<TrechoEntity> {
@@ -38,7 +25,9 @@ export class TrechoService extends BaseService<TrechoEntity> {
     }
 
     async createTrecho(dto: CreateTrechoDto): Promise<TrechoEntity> {
-        return await this.persist({ ...dto, vetor: dto.vetor ?? [] });
+        const trecho = await this.persist({ ...dto, vetor: dto.vetor ?? [] });
+        this.invalidarIndice();
+        return trecho;
     }
 
     async listByNorma(normaId: string): Promise<TrechoEntity[]> {
@@ -51,18 +40,20 @@ export class TrechoService extends BaseService<TrechoEntity> {
 
     async remove(id: string): Promise<void> {
         await this.deleteInstanceById(id);
+        this.invalidarIndice();
     }
 
-    // Busca por similaridade feita em memória — sem a extensão pgvector não dá pra
-    // usar um índice ANN no banco. Funciona bem no volume de uma base de hackathon;
-    // trocar por uma consulta com `vector <-> vector` quando a extensão existir.
-    async search(vetor: number[], limit = 5): Promise<TrechoEntity[]> {
-        const trechos = await this.findAllInstances();
-        return trechos
-            .map((t) => ({ trecho: t, score: cosineSimilarity(vetor, t.vetor) }))
-            .sort((a, b) => b.score - a.score)
-            .slice(0, limit)
-            .map((r) => r.trecho);
+    // Busca vetorial do copiloto (ver IndiceVetorial): carrega os vetores uma vez.
+    private readonly indice = new IndiceVetorial(() =>
+        this.repository.find({ select: { id: true, normaId: true, artigo: true, texto: true, vetor: true } }),
+    );
+
+    invalidarIndice(): void {
+        this.indice.invalidar();
+    }
+
+    async buscarSemelhantes(vetor: number[], limite = 10, referencias?: Referencias): Promise<TrechoSemelhante[]> {
+        return await this.indice.buscar(vetor, limite, referencias);
     }
 
     // Busca por palavra-chave, sem embedding nenhum — usada pelo Copiloto enquanto
@@ -74,7 +65,8 @@ export class TrechoService extends BaseService<TrechoEntity> {
             .filter((t) => t.length > 2 && !PALAVRAS_VAZIAS.has(t));
         if (termos.length === 0) return [];
 
-        const trechos = await this.findAllInstances();
+        // sem a coluna `vetor`: a busca por palavra não usa, e são 1024 números por trecho
+        const trechos = await this.findAllInstances({ select: { id: true, normaId: true, artigo: true, texto: true } });
         return trechos
             .map((t) => {
                 const texto = normalizar(t.texto);

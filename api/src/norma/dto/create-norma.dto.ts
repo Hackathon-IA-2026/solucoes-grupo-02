@@ -1,4 +1,4 @@
-import { IsArray, IsDateString, IsIn, IsOptional, IsString, IsUrl } from 'class-validator';
+import { IsArray, IsBoolean, IsDateString, IsIn, IsOptional, IsString, IsUrl } from 'class-validator';
 import type { NormaImpact, NormaSource } from '../entities/norma.entity';
 
 export class CreateNormaDto {
@@ -49,6 +49,10 @@ export class CreateNormaDto {
     @IsUrl()
     @IsOptional()
     url?: string;
+
+    @IsBoolean()
+    @IsOptional()
+    canonica?: boolean;
 
     @IsString()
     @IsOptional()
