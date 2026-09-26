@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { UserService } from '../user/user.service';
@@ -10,6 +10,7 @@ import { CompanieEntity } from '../companie/entities/companie.entity';
 import { PlantEntity } from '../plant/entities/plant.entity';
 import { formatarCnpj, somenteDigitos } from '../utils/cnpj';
 import { RegisterDto } from './dto/register.dto';
+import { escapeHtml } from '@/utils/texto';
 
 function initialsOf(name: string): string {
     return (
@@ -32,6 +33,7 @@ export class AuthService {
         private readonly dataSource: DataSource,
     ) {}
 
+    private readonly logger = new Logger(AuthService.name);
     buildUserResponse(user: UserEntity) {
         return {
             id: user.id,
@@ -94,11 +96,24 @@ export class AuthService {
 
         const webUrl = this.config.get<string>('WEB_URL', 'http://localhost:5173');
         const resetUrl = `${webUrl}/recuperar-senha?token=${result.token}`;
-        await this.notificationService.sendEmail(
-            result.user.email,
-            'Redefinição de senha — Energy Start',
-            `<p>Recebemos um pedido para redefinir a senha da sua conta.</p><p><a href="${resetUrl}">Clique aqui para criar uma senha nova</a>. O link vale por 1 hora.</p><p>Se você não pediu isso, pode ignorar este e-mail.</p>`,
-        );
+
+        const assunto = 'Redefinição de senha — Energy Start';
+        const htmlCorpo =
+            `<p>Recebemos um pedido para redefinir a senha da sua conta.</p>` +
+            `<p><a href="${escapeHtml(resetUrl)}">Clique aqui para criar uma senha nova</a>. O link vale por 1 hora.</p>` +
+            `<p>Se você não pediu isso, pode ignorar este e-mail.</p>`;
+
+        // Consumindo a nova assinatura baseada em objeto (SendEmailOptions)
+        await this.notificationService.sendEmail({
+            to: result.user.email,
+            subject: assunto,
+            html: htmlCorpo,
+            // Fallback textual para evitar que filtros rígidos de spam barrem o link de recuperação
+            text:
+                `Recebemos um pedido para redefinir a senha da sua conta no Energy Start.\n\n` +
+                `Acesse o link a seguir para criar uma senha nova (válido por 1 hora):\n${resetUrl}\n\n` +
+                `Se você não pediu isso, pode ignorar este e-mail.`,
+        });
     }
 
     async validateUser(email: string, pass: string) {

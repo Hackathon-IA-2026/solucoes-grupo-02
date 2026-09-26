@@ -2,42 +2,75 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 
-// Envia e-mail de verdade se SMTP_HOST estiver configurado no .env; caso
-// contrário só loga (não trava o motor de alertas/reset de senha em dev/demo
-// sem credenciais configuradas). Notificação push (celular) não está aqui —
-// exigiria service worker + VAPID no front, que ainda não existem no projeto.
+export interface SendEmailOptions {
+    to: string | string[];
+    subject: string;
+    html: string;
+    text?: string;
+    attachments?: nodemailer.Attachment[];
+}
+
 @Injectable()
 export class NotificationService {
     private readonly logger = new Logger(NotificationService.name);
-    private readonly transporter: nodemailer.Transporter | null;
+    private readonly transporter: nodemailer.Transporter | null = null;
+    private readonly defaultFrom: string;
 
     constructor(private readonly config: ConfigService) {
         const host = this.config.get<string>('SMTP_HOST');
-        this.transporter = host
-            ? nodemailer.createTransport({
-                  host,
-                  port: Number(this.config.get<string>('SMTP_PORT', '587')),
-                  secure: this.config.get<string>('SMTP_SECURE') === 'true',
-                  auth: this.config.get<string>('SMTP_USER')
-                      ? {
-                            user: this.config.get<string>('SMTP_USER'),
-                            pass: this.config.get<string>('SMTP_PASSWORD'),
-                        }
-                      : undefined,
-              })
-            : null;
-    }
+        this.defaultFrom = this.config.get<string>('SMTP_FROM', 'no-reply@energystart.app');
 
-    async sendEmail(to: string, subject: string, html: string): Promise<void> {
-        if (!this.transporter) {
-            this.logger.warn(`SMTP não configurado — e-mail "${subject}" para ${to} não foi enviado (só logado).`);
+        if (!host) {
+            this.logger.warn('SMTP_HOST não configurado. O serviço funcionará em modo MOCK (apenas logs).');
             return;
         }
-        const from = this.config.get<string>('SMTP_FROM', 'no-reply@energystart.app');
+
+        const port = this.config.get<number>('SMTP_PORT', 587);
+        const secure = this.config.get<string>('SMTP_SECURE') === 'true';
+        const user = this.config.get<string>('SMTP_USER');
+        const pass = this.config.get<string>('SMTP_PASSWORD');
+
+        this.transporter = nodemailer.createTransport({
+            host,
+            port: Number(port),
+            secure,
+            ...(user && pass ? { auth: { user, pass } } : {}),
+            pool: true,
+            maxConnections: 5,
+            maxMessages: 100,
+        });
+    }
+
+    async sendEmail(options: SendEmailOptions): Promise<boolean> {
+        const { to, subject, html, text, attachments } = options;
+        const targetPayload = Array.isArray(to) ? to.join(', ') : to;
+
+        if (!this.transporter) {
+            this.logger.warn(
+                `[MOCK EMAIL] Envio simulado com sucesso.\n` +
+                    `• Para: ${targetPayload}\n` +
+                    `• Assunto: ${subject}\n` +
+                    `• Conteúdo (HTML): ${html.substring(0, 100)}...`,
+            );
+            return true;
+        }
+
         try {
-            await this.transporter.sendMail({ from, to, subject, html });
-        } catch (err) {
-            this.logger.error(`Falha ao enviar e-mail para ${to}: ${(err as Error).message}`);
+            await this.transporter.sendMail({
+                from: this.defaultFrom,
+                to,
+                subject,
+                html,
+                text,
+                attachments,
+            });
+
+            this.logger.log(`E-mail enviado com sucesso para: ${targetPayload} | Assunto: ${subject}`);
+            return true;
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Falha ao enviar e-mail para ${targetPayload}: ${message}`);
+            return false;
         }
     }
 }

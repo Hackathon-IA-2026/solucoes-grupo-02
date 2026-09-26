@@ -171,14 +171,36 @@ export class AlertEngineService {
     // Vai pros membros da empresa dona dos alertas (quem ainda não aceitou o convite fica de fora).
     private async enviarEmail(companyId: string, alertas: AlertaEntity[], assunto: string, introducao: string): Promise<void> {
         const usuarios = await this.userService.listActiveByCompany(companyId);
+
+        if (!usuarios || usuarios.length === 0) {
+            this.logger.warn(`Nenhum usuário ativo encontrado para a empresa ${companyId}. Nenhum e-mail enviado.`);
+            return;
+        }
+
         const webUrl = this.config.get<string>('WEB_URL', 'http://localhost:5173');
         const corpo = `<p>${escapeHtml(introducao)}</p><ul>${alertas
-            .map((a) => `<li><b>${escapeHtml(a.titulo)}</b> — ${escapeHtml(a.mensagem)}</li>`)
-            .join('')}</ul><p><a href="${escapeHtml(`${webUrl}/alertas`)}">Abrir a Central de Alertas</a></p>`;
+            .map((a) => `<li><b>escapeHtml(a.titulo)</b> — {escapeHtml(a.mensagem)}</li>`)
+            .join('')}</ul><p><a href="${escapeHtml(`\${webUrl}/alertas`)}">Abrir a Central de Alertas</a></p>`;
+
+        let emailsEnviadosComSucesso = 0;
 
         for (const usuario of usuarios) {
-            await this.notificationService.sendEmail(usuario.email, assunto, corpo);
+            const enviado = await this.notificationService.sendEmail({
+                to: usuario.email,
+                subject: assunto,
+                html: corpo,
+                // Fornece uma versão em texto puro caso o cliente de e-mail bloqueie HTML
+                text: `${introducao}\n\n${alertas.map((a) => `a.titulo: {a.mensagem}`).join('\n')}\n\nAcesse: ${webUrl}/alertas`,
+            });
+
+            if (enviado) {
+                emailsEnviadosComSucesso++;
+            }
         }
-        this.logger.log(`${alertas.length} alerta(s) enviado(s) por e-mail pra ${usuarios.length} usuário(s).`);
+
+        this.logger.log(
+            `${alertas.length} alerta(s) processado(s). ` +
+                `E-mails entregues com sucesso para ${emailsEnviadosComSucesso} de ${usuarios.length} usuário(s).`,
+        );
     }
 }

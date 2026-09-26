@@ -60,12 +60,21 @@ export class EquipeService {
         const webUrl = this.config.get<string>('WEB_URL', 'http://localhost:5173');
         const link = `${webUrl}/recuperar-senha?token=${token}&convite=1`;
 
-        await this.notificationService.sendEmail(
-            convidado.email,
-            `Convite para a conta da ${empresa} no Energy Start`,
+        const assunto = `Convite para a conta da ${empresa} no Energy Start`;
+        const htmlCorpo =
             `<p>${escapeHtml(quemConvida.name)} convidou você para acessar a conta da <b>${escapeHtml(empresa)}</b> no Energy Start.</p>` +
-                `<p><a href="${escapeHtml(link)}">Clique aqui para criar sua senha</a>. O link vale por 7 dias.</p>`,
-        );
+            `<p><a href="${escapeHtml(link)}">Clique aqui para criar sua senha</a>. O link vale por 7 dias.</p>`;
+
+        await this.notificationService.sendEmail({
+            to: convidado.email,
+            subject: assunto,
+            html: htmlCorpo,
+            // Texto alternativo limpo para melhorar a entregabilidade em servidores corporativos
+            text:
+                `${quemConvida.name} convidou você para acessar a conta da ${empresa} no Energy Start.\n\n` +
+                `Acesse o link a seguir para criar sua senha (válido por 7 dias):\n${link}`,
+        });
+
         return link;
     }
 }
