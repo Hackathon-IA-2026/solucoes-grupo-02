@@ -1,4 +1,5 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join, resolve } from 'path';
@@ -13,9 +14,19 @@ async function bootstrap() {
     });
 
     const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-        logger: WinstonModule.createLogger({
+        bufferLogs: true,
+    });
+
+    const configService = app.get(ConfigService);
+
+    const logLevelConsole = configService.get<string>('LOG_LEVEL_CONSOLE', 'debug');
+    const logLevelFile = configService.get<string>('LOG_LEVEL_FILE', 'info');
+
+    app.useLogger(
+        WinstonModule.createLogger({
             transports: [
                 new winston.transports.Console({
+                    level: logLevelConsole,
                     format: winston.format.combine(
                         winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
                         nestWinstonModuleUtilities.format.nestLike('NestAPI', {
@@ -25,18 +36,18 @@ async function bootstrap() {
                     ),
                 }),
                 new EntityFileTransport({
-                    level: 'info',
+                    level: logLevelFile,
                     format: winston.format.combine(winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), textFormat),
                 }),
             ],
         }),
-    });
+    );
 
     const httpLogger = new Logger('HTTP');
 
     app.useBodyParser('json', { limit: '20mb' });
 
-    const webDir = process.env.WEB_DIST_DIR;
+    const webDir = configService.get<string>('WEB_DIST_DIR');
     if (webDir) {
         app.setGlobalPrefix('api');
         app.useStaticAssets(resolve(webDir));
@@ -47,7 +58,7 @@ async function bootstrap() {
     }
 
     app.enableCors({
-        origin: process.env.CORS_ORIGIN?.split(',') ?? 'http://localhost:5173',
+        origin: configService.get<string>('CORS_ORIGIN')?.split(',') ?? 'http://localhost:5173',
         credentials: true,
     });
 
@@ -64,6 +75,7 @@ async function bootstrap() {
         }),
     );
 
-    await app.listen(process.env.PORT ?? 3000);
+    const port = configService.get<number>('PORT', 3000);
+    await app.listen(port);
 }
 bootstrap();

@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, HttpStatus, Post, Put, UseGuards, Request } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, HttpStatus, Post, Put, UseGuards, Request, Logger } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { UserService } from '@/user/user.service';
 import { RegisterDto } from './dto/register.dto';
@@ -17,11 +17,14 @@ export class AuthController {
         private readonly userService: UserService,
     ) {}
 
+    private readonly logger = new Logger(AuthController.name);
+
     @IsPublic()
     @HttpCode(HttpStatus.OK)
     @UseGuards(LocalAuthGuard)
     @Post('login')
     async signIn(@Request() req: { user: UserPayload }) {
+        this.logger.debug(`User requested login.`);
         return await this.authService.buildSession(req.user.id);
     }
 
