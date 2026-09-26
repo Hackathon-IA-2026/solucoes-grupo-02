@@ -1,18 +1,41 @@
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join, resolve } from 'path';
+import * as winston from 'winston';
+import { WinstonModule, utilities as nestWinstonModuleUtilities } from 'nest-winston';
 import { AppModule } from './app.module';
+import { EntityFileTransport } from './logger/entity-file.transport';
 
 async function bootstrap() {
-    const app = await NestFactory.create<NestExpressApplication>(AppModule);
+    const textFormat = winston.format.printf(({ level, message, timestamp, context }) => {
+        return `[${timestamp}] [${context || 'System'}] ${level.toUpperCase()}: ${message}`;
+    });
 
-    // A ingestão (POST /interno/ingestao) recebe o texto completo de cada norma —
-    // o limite padrão do Express (100 kB) não comporta nem uma coleta de um dia.
+    const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+        logger: WinstonModule.createLogger({
+            transports: [
+                new winston.transports.Console({
+                    format: winston.format.combine(
+                        winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+                        nestWinstonModuleUtilities.format.nestLike('NestAPI', {
+                            colors: true,
+                            prettyPrint: true,
+                        }),
+                    ),
+                }),
+                new EntityFileTransport({
+                    level: 'info',
+                    format: winston.format.combine(winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), textFormat),
+                }),
+            ],
+        }),
+    });
+
+    const httpLogger = new Logger('HTTP');
+
     app.useBodyParser('json', { limit: '20mb' });
 
-    // No deploy (ver infra/), a API também serve o build do web na mesma URL.
-    // As rotas da API vão para /api porque o front tem rotas com o mesmo nome (ex.: /noticias).
     const webDir = process.env.WEB_DIST_DIR;
     if (webDir) {
         app.setGlobalPrefix('api');
@@ -27,10 +50,12 @@ async function bootstrap() {
         origin: process.env.CORS_ORIGIN?.split(',') ?? 'http://localhost:5173',
         credentials: true,
     });
+
     app.use((req, res, next) => {
-        console.log(`${req.method} ${req.originalUrl}`);
+        httpLogger.log(`${req.method} ${req.originalUrl}`);
         next();
     });
+
     app.useGlobalPipes(
         new ValidationPipe({
             whitelist: true,
@@ -38,6 +63,7 @@ async function bootstrap() {
             transform: true,
         }),
     );
+
     await app.listen(process.env.PORT ?? 3000);
 }
 bootstrap();
