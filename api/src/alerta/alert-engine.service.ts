@@ -166,8 +166,8 @@ export class AlertEngineService {
 
         const webUrl = this.config.get<string>('WEB_URL', 'http://localhost:5173');
         const corpo = `<p>${escapeHtml(introducao)}</p><ul>${alertas
-            .map((a) => `<li><b>escapeHtml(a.titulo)</b> — {escapeHtml(a.mensagem)}</li>`)
-            .join('')}</ul><p><a href="${escapeHtml(`\${webUrl}/alertas`)}">Abrir a Central de Alertas</a></p>`;
+            .map((a) => `<li><b>${escapeHtml(a.titulo)}</b> — ${escapeHtml(a.mensagem)}</li>`)
+            .join('')}</ul><p><a href="${escapeHtml(`${webUrl}/alertas`)}">Abrir a Central de Alertas</a></p>`;
 
         let emailsEnviadosComSucesso = 0;
 
@@ -176,7 +176,7 @@ export class AlertEngineService {
                 to: usuario.email,
                 subject: assunto,
                 html: corpo,
-                text: `${introducao}\n\n${alertas.map((a) => `a.titulo: {a.mensagem}`).join('\n')}\n\nAcesse: ${webUrl}/alertas`,
+                text: `${introducao}\n\n${alertas.map((a) => `${a.titulo}: ${a.mensagem}`).join('\n')}\n\nAcesse: ${webUrl}/alertas`,
             });
 
             if (enviado) {
