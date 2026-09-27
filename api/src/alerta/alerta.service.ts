@@ -5,7 +5,6 @@ import { BaseService } from '../base.service';
 import { AlertaEntity } from './entities/alerta.entity';
 import { CreateAlertaDto } from './dto/create-alerta.dto';
 
-// Horário de Brasília, independente do fuso do servidor (no deploy os containers rodam em UTC).
 const EM_BRASILIA = new Intl.DateTimeFormat('pt-BR', {
     timeZone: 'America/Sao_Paulo',
     year: 'numeric',
@@ -28,7 +27,6 @@ export function formatAt(date: Date, agora = new Date()): string {
     return `${d.ddmm}, ${d.hora}`;
 }
 
-// Molda a entidade pro formato que o front (AlertsPage) já consome.
 export function toAlertResponse(alerta: AlertaEntity) {
     return {
         id: alerta.id,
@@ -51,7 +49,6 @@ export class AlertaService extends BaseService<AlertaEntity> {
         super(alertaRepository);
     }
 
-    // Todo alerta pertence a uma empresa; as leituras abaixo nunca cruzam empresas.
     async create(companyId: string, dto: CreateAlertaDto): Promise<AlertaEntity> {
         return await this.persist({ ...dto, companyId });
     }

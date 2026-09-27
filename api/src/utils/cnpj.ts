@@ -4,7 +4,6 @@ export function somenteDigitos(valor: string): string {
     return valor.replace(/\D/g, '');
 }
 
-// Confere os dois dígitos verificadores do CNPJ (aceita com ou sem máscara).
 export function cnpjValido(valor: string): boolean {
     const cnpj = somenteDigitos(valor);
     if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) return false;
@@ -21,7 +20,7 @@ export function cnpjValido(valor: string): boolean {
     return cnpj.endsWith(`${d1}${d2}`);
 }
 
-// Os 8 primeiros dígitos: matriz e filiais têm a mesma raiz (são a mesma pessoa jurídica).
+// Matriz e filiais têm a mesma raiz (8 primeiros dígitos).
 export function raizCnpj(cnpj: string): string {
     return somenteDigitos(cnpj).slice(0, 8);
 }

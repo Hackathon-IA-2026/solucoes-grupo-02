@@ -2,11 +2,10 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { TAXONOMIA } from './taxonomia';
 
-// Lê a TAXONOMIA do classificador (ai/models/classifier.py): áreas com 4 espaços de recuo,
-// subáreas com 8, cada uma como chave entre aspas.
 function taxonomiaDoClassificador(): Record<string, string[]> {
     const python = readFileSync(join(__dirname, '../../../ai/models/classifier.py'), 'utf8');
-    const bloco = python.slice(python.indexOf('TAXONOMIA = {'), python.indexOf('# 2. Prompt'));
+    const inicio = python.indexOf('TAXONOMIA = {');
+    const bloco = python.slice(inicio, python.indexOf('\n}', inicio));
     const taxonomia: Record<string, string[]> = {};
     let area = '';
     for (const linha of bloco.split('\n')) {

@@ -32,8 +32,6 @@ export class ChatService {
     async ask(userId: string, companyId: string, sessionId: string, question: string, normaId?: string) {
         const session = await this.getSessionOrFail(userId, sessionId);
 
-        // As últimas mensagens da conversa vão junto: "e se for acima de 500 kW?" só faz
-        // sentido com a pergunta anterior.
         const anteriores = await this.messageRepo.find({
             where: { sessionId: session.id },
             order: { createdAt: 'DESC' },
@@ -55,7 +53,7 @@ export class ChatService {
         if (session.titulo === 'Nova conversa') {
             session.titulo = question.length > 60 ? `${question.slice(0, 57)}…` : question;
         }
-        await this.sessionRepo.save(session); // também atualiza `updatedAt`, pra ordenar a lista de conversas
+        await this.sessionRepo.save(session);
 
         return { sessionId: session.id, answer: resposta.answer, citations: resposta.citations };
     }

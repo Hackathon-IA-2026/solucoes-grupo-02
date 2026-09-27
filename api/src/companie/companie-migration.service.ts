@@ -7,10 +7,7 @@ import { AlertaEntity } from '../alerta/entities/alerta.entity';
 import { cnpjValido, somenteDigitos } from '../utils/cnpj';
 import { CompanieEntity } from './entities/companie.entity';
 
-// Antes do cadastro por empresa, cada banco era de uma empresa só (COMPANY_NAME e
-// COMPANY_CNPJ no .env). Na inicialização, se ainda houver usuários, usina ou
-// alertas sem empresa, cria essa empresa a partir do .env e liga tudo a ela — o
-// usuário mais antigo vira admin. Depois da primeira vez, não faz nada.
+// Liga à empresa do .env (COMPANY_NAME/COMPANY_CNPJ) os dados criados antes do cadastro por empresa.
 @Injectable()
 export class CompanieMigrationService implements OnApplicationBootstrap {
     private readonly logger = new Logger(CompanieMigrationService.name);
@@ -34,7 +31,6 @@ export class CompanieMigrationService implements OnApplicationBootstrap {
             await m.update(UserEntity, { companyId: IsNull() }, { companyId: empresa.id });
             if (usuarios.length > 0 && !usuarios.some((u) => u.isAdmin)) await m.update(UserEntity, { id: usuarios[0].id }, { isAdmin: true });
 
-            // Uma usina por empresa: fica a mais antiga (só deveria existir uma).
             const [usina, ...sobras] = usinas;
             if (usina) await m.update(PlantEntity, { id: usina.id }, { companyId: empresa.id });
             if (sobras.length) await m.remove(sobras);

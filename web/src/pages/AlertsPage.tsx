@@ -15,9 +15,6 @@ const AMBIENTES = ['Livre (ACL)', 'Regulado (ACR)', 'Ambos'];
 
 const SEV: Record<string, string> = { alto: 'bg-danger', medio: 'bg-accent', baixo: 'bg-brand' };
 
-// A tela só oferece o que o classificador conhece (GET /plants/taxonomia). Áreas e subáreas de
-// versões antigas da tela (Hidrelétrica, Tarifas e encargos...) nunca casariam com uma norma:
-// saem do formulário e, no próximo "Salvar", do banco.
 function somenteDaTaxonomia(plant: Plant, taxonomia: Taxonomia): Plant {
   const subareas = Object.values(taxonomia).flat();
   return { ...plant, areas: plant.areas.filter((a) => a in taxonomia), subareas: plant.subareas.filter((s) => subareas.includes(s)) };
@@ -39,7 +36,7 @@ export function AlertsPage() {
   const salvar = useMutation({
     mutationFn: async (p: Partial<Plant>) => {
       const usinaAtualizada = await api.updatePlant(p);
-      const novosAlertas = await api.checkAlerts(); // recruza a lei x o perfil que acabou de mudar
+      const novosAlertas = await api.checkAlerts();
       return { usinaAtualizada, novosAlertas };
     },
     onSuccess: ({ usinaAtualizada, novosAlertas }) => {
@@ -54,7 +51,6 @@ export function AlertsPage() {
     onError: (e) => toast(e instanceof Error ? e.message : 'Não foi possível salvar.'),
   });
 
-  // Sugere os CEGs pelo cadastro de agentes de geração da ANEEL (CNPJ da empresa + SPEs do formulário).
   const buscarUsinas = useMutation({
     mutationFn: (cnpjs: string[]) => api.listUsinasAneel(cnpjs),
     onSuccess: (usinas) => {
@@ -69,7 +65,6 @@ export function AlertsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts'] }),
   });
 
-  // Abrir o alerta marca como lido (apaga o contador do menu) e leva ao resumo da norma de origem.
   const abrir = (a: Alert) => {
     if (!a.lido) marcarLido.mutate(a.id);
     if (a.normId) navigate(`/resumos?norma=${a.normId}`);
@@ -80,7 +75,6 @@ export function AlertsPage() {
   const alterna = (campo: 'areas' | 'subareas' | 'cegs' | 'cnpjs', valor: string) =>
     setForm({ ...form, [campo]: form[campo].includes(valor) ? form[campo].filter((v) => v !== valor) : [...form[campo], valor] });
 
-  // Desmarcar uma área leva junto as subáreas dela.
   const alternaArea = (area: string) => {
     const marcada = form.areas.includes(area);
     setForm({
@@ -90,7 +84,6 @@ export function AlertsPage() {
     });
   };
 
-  // Só dígitos e pontuação = CNPJ de uma SPE; o resto tem que ser um CEG.
   const adicionarId = () => {
     const texto = novoId.trim();
     if (/^[\d.\-/\s]+$/.test(texto)) {

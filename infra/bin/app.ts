@@ -4,6 +4,6 @@ import { AppStack } from '../lib/app-stack';
 const app = new cdk.App();
 
 new AppStack(app, 'Grupo02App', {
-    // No ambiente do hackathon só funcionam us-east-1 e us-west-2; o Bedrock está em us-east-1.
+    // O Bedrock está em us-east-1.
     env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: 'us-east-1' },
 });

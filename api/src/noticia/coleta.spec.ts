@@ -1,7 +1,6 @@
 import { TAXONOMIA } from '../alerta/taxonomia';
 import { FONTES, lerGovBr, lerRss, setoresDaNoticia } from './coleta';
 
-// Recortes do que os sites devolviam em 26/09/2026.
 const RSS = `<rss><channel>
 <item>
   <title>No Senado, ABSOLAR destaca o papel da fonte solar e do armazenamento</title>

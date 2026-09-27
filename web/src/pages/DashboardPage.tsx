@@ -25,7 +25,6 @@ export function DashboardPage() {
   const { data: todas = [] } = useQuery({ queryKey: ['norms', 'todas', escopo], queryFn: () => api.listNorms('todas', escopo) });
   const { data: alertas = [] } = useQuery({ queryKey: ['alerts'], queryFn: api.listAlerts });
 
-  // Norma sem data de publicação (dados do mock) conta como recente.
   const recentes = todas.filter((n) => !n.publishedAt || diasAte(n.publishedAt) >= -7);
   const prazosDaSemana = todas.filter((n) => n.deadlineAt && diasAte(n.deadlineAt) >= 0 && diasAte(n.deadlineAt) <= 7).length;
   const naoLidos = alertas.filter((a) => !a.lido).length;

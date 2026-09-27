@@ -1,13 +1,7 @@
-"""
-Reclassifica as normas já gravadas na API em ato geral ou individual (rodar uma vez, depois
-do deploy que criou a separação; de novo só se o prompt do classificador mudar).
+"""Reclassifica as normas já gravadas em ato geral ou individual (só atualiza `abrangencia`, `cnpjs` e `cegs`).
 
-    python reclassificar.py --simular   # mostra o que mudaria, sem gravar nada
+    python reclassificar.py --simular   # mostra o que mudaria, sem gravar
     python reclassificar.py
-
-Não apaga nada: cada norma volta pela ingestão, que a acha pelo hash do texto ou pelo link e
-só atualiza `abrangencia`, `cnpjs` e `cegs`. Resumo, trechos, vetores, alertas e links do
-chat continuam como estão, e não sai alerta novo. Custa uma chamada ao classificador por norma.
 """
 
 import sys
@@ -24,18 +18,17 @@ if __name__ == "__main__":
     simular = "--simular" in sys.argv
     r = requests.get(f"{API_URL}/interno/normas", headers={"x-internal-key": CHAVE}, timeout=120)
     r.raise_for_status()
-    # sem texto não há o que classificar (e a ingestão não acharia a norma pelo hash)
     normas = [n for n in r.json() if n.get("texto")]
     print(f"{len(normas)} norma(s) com texto para reclassificar\n")
 
     linhas, mudam, falhas = [], 0, 0
     for i, n in enumerate(normas, start=1):
-        for tentativa in range(3):  # limite de chamadas ou falha da API: espera e tenta de novo
+        for tentativa in range(3):
             try:
                 c = classificar_texto(n["texto"], n["titulo"])
                 break
             except RuntimeError:
-                raise  # chave errada ou modelo sem acesso: para na hora
+                raise
             except Exception as e:
                 print(f"  erro na tentativa {tentativa + 1}: {e} — esperando 30s")
                 time.sleep(30)
@@ -56,7 +49,7 @@ if __name__ == "__main__":
                 "abrangencia": c["abrangencia"],
                 "cnpjs": extrair_cnpjs(n["texto"]),
                 "cegs": extrair_cegs(n["texto"]),
-                "somente_atualizar": True,  # a API rejeita em vez de criar se não achar a norma
+                "somente_atualizar": True,
             }
         )
 

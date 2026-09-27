@@ -14,7 +14,6 @@ export class PlantController {
         private readonly usinasAneel: UsinasAneelService,
     ) {}
 
-    // Áreas e subáreas que a Central de Alertas oferece (as que o classificador conhece).
     @Get('taxonomia')
     taxonomia() {
         return TAXONOMIA;
@@ -30,9 +29,6 @@ export class PlantController {
         return toPlantResponse(await this.plantService.updatePlant(req.user.companyId, dto));
     }
 
-    // Usinas da empresa no cadastro da ANEEL (pelo CNPJ dela e das SPEs), para o usuário escolher
-    // quais CEGs monitorar. `cnpjs` (separados por vírgula) traz SPEs digitadas e ainda não salvas —
-    // o cadastro da ANEEL é público, então não há o que proteger.
     @Get('me/usinas-aneel')
     async usinasNaAneel(@Request() req: { user: UserPayload }, @Query('cnpjs') cnpjs?: string) {
         const plant = await this.plantService.getPlant(req.user.companyId);
@@ -41,8 +37,6 @@ export class PlantController {
     }
 }
 
-// Para o pipeline Python: com isso ele descarta, antes do resumidor, os atos individuais
-// (despacho sobre uma usina, multa...) que não citam nenhum cliente.
 @Interno()
 @Controller('interno/clientes')
 export class PlantInternoController {

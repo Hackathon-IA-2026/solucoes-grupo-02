@@ -12,14 +12,9 @@ import { AlertaEntity } from './entities/alerta.entity';
 import { AlertaService } from './alerta.service';
 import { assuntosMonitorados, citaAEmpresa } from './assuntos-monitorados';
 
-// Cruza `limites` (regras extraídas das normas) com `configuracoes` (o perfil
-// operacional da usina) e cria um `Alerta` pra cada regra descumprida — é o
-// "Motor de Alertas: Cruza Lei x Perfil" do diagrama de arquitetura. Também avisa
-// quando sai uma norma nova nas áreas/subáreas que a usina monitora.
 const CAMPOS_NUMERICOS_PLANTA = ['capacityMw', 'co2', 'availability'] as const;
 type CampoNumericoPlanta = (typeof CAMPOS_NUMERICOS_PLANTA)[number];
 
-// Mesmos rótulos do seletor de frequência da Central de Alertas (web/src/pages/AlertsPage.tsx).
 export const FREQUENCIA_IMEDIATA = 'Imediato';
 export type FrequenciaResumo = 'Resumo diário' | 'Resumo semanal';
 
@@ -57,7 +52,6 @@ export class AlertEngineService {
         private readonly config: ConfigService,
     ) {}
 
-    // Recruza lei x perfil de uma empresa (o front chama depois de salvar a usina).
     async run(companyId: string): Promise<AlertaEntity[]> {
         const plant = await this.plantService.getPlant(companyId);
         const criados = await this.checarLimites(plant);
@@ -65,8 +59,6 @@ export class AlertEngineService {
         return criados;
     }
 
-    // Chamado pela ingestão: pra cada empresa, avisa das normas novas nas áreas que
-    // ela monitora e recruza os limites, que podem ter chegado junto. Um e-mail por empresa.
     async aposIngestao(normasNovas: NormaEntity[]): Promise<AlertaEntity[]> {
         const criados: AlertaEntity[] = [];
         for (const plant of await this.plantService.listAll()) {
@@ -77,7 +69,6 @@ export class AlertEngineService {
         return criados;
     }
 
-    // Disparado pelo cron (AlertDigestService) para as empresas que escolheram resumo em vez de aviso imediato.
     async enviarResumo(frequencia: FrequenciaResumo, desde: Date): Promise<void> {
         for (const plant of await this.plantService.listAll()) {
             if (plant.frequency !== frequencia || !plant.channels?.email) continue;
@@ -131,8 +122,6 @@ export class AlertEngineService {
         });
     }
 
-    // Ato geral: avisa quem monitora a área/subárea. Ato individual (despacho que libera uma
-    // usina, multa, REIDI...): só a empresa citada pelo CNPJ ou pelo CEG de uma usina dela.
     private async alertarNormasNovas(plant: PlantEntity, normas: NormaEntity[]): Promise<AlertaEntity[]> {
         const criados: AlertaEntity[] = [];
         for (const norma of normas) {
@@ -154,7 +143,6 @@ export class AlertEngineService {
         return criados;
     }
 
-    // Com frequência "Resumo diário/semanal", os alertas ficam pro cron em vez de irem na hora.
     private async notificarAgora(plant: PlantEntity, alertas: AlertaEntity[]): Promise<void> {
         if (alertas.length === 0 || !plant.channels?.email) return;
         if ((plant.frequency || FREQUENCIA_IMEDIATA) !== FREQUENCIA_IMEDIATA) return;
@@ -168,7 +156,6 @@ export class AlertEngineService {
         );
     }
 
-    // Vai pros membros da empresa dona dos alertas (quem ainda não aceitou o convite fica de fora).
     private async enviarEmail(companyId: string, alertas: AlertaEntity[], assunto: string, introducao: string): Promise<void> {
         const usuarios = await this.userService.listActiveByCompany(companyId);
 
@@ -189,7 +176,6 @@ export class AlertEngineService {
                 to: usuario.email,
                 subject: assunto,
                 html: corpo,
-                // Fornece uma versão em texto puro caso o cliente de e-mail bloqueie HTML
                 text: `${introducao}\n\n${alertas.map((a) => `a.titulo: {a.mensagem}`).join('\n')}\n\nAcesse: ${webUrl}/alertas`,
             });
 

@@ -2,15 +2,12 @@ import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import { normalizarCeg } from '../utils/ceg';
 import { raizCnpj } from '../utils/cnpj';
 
-// Dados abertos da ANEEL, "Agentes de Geração de Energia Elétrica": cada linha liga o CNPJ
-// de um agente a uma usina (CEG) com o percentual de participação. A ANEEL atualiza todo mês
-// (~4,5 MB, ~25 mil linhas); a API baixa na primeira consulta e guarda por um dia.
 const URL_AGENTES =
     'https://dadosabertos.aneel.gov.br/dataset/283a0172-3966-49e7-ae45-d2885ad17b03/resource/20ef769f-a072-489d-9df4-c834529f8a78/download/agentes-geracao-energia-eletrica.csv';
 const VALIDADE_MS = 24 * 60 * 60 * 1000;
 
 export interface UsinaAneel {
-    ceg: string; // normalizado, o formato guardado em `configuracoes.cegs`
+    ceg: string; // normalizado
     codigoCeg: string; // como a ANEEL escreve, ex.: "EOL.CV.RN.007663-4.1"
     nome: string;
     tipo: string; // EOL, UFV, PCH, UTE...
@@ -20,7 +17,6 @@ export interface UsinaAneel {
     participacaoPct: number;
 }
 
-// Todos os campos do CSV vêm entre aspas e separados por ";" ("a";"b";"c").
 export function lerCsvAgentes(csv: string): UsinaAneel[] {
     const linhas = csv.split(/\r?\n/).filter((l) => l.trim());
     const campos = (linha: string) => linha.trim().slice(1, -1).split('";"');
@@ -40,7 +36,7 @@ export function lerCsvAgentes(csv: string): UsinaAneel[] {
         const c = campos(linha);
         const doc = (c[iCnpj] ?? '').replace(/\D/g, '');
         const ceg = normalizarCeg(c[iCeg] ?? '');
-        // 11 dígitos ou menos é CPF (pessoa física); CNPJ com zero à esquerda pode vir sem ele
+        // até 11 dígitos é CPF (CNPJ pode vir sem o zero à esquerda)
         if (doc.length <= 11 || !ceg) return [];
         return [
             {
@@ -63,7 +59,6 @@ export class UsinasAneelService {
     private cache?: { em: number; usinas: UsinaAneel[] };
     private baixando?: Promise<UsinaAneel[]>;
 
-    // Usinas em que algum destes CNPJs (pela raiz: matriz e filiais) tem participação.
     async porCnpjs(cnpjs: string[]): Promise<UsinaAneel[]> {
         const raizes = new Set(cnpjs.map(raizCnpj));
         if (raizes.size === 0) return [];
@@ -89,7 +84,7 @@ export class UsinasAneelService {
             return usinas;
         } catch (err) {
             this.logger.warn(`Falha ao baixar os agentes de geração da ANEEL: ${(err as Error).message}`);
-            if (this.cache) return this.cache.usinas; // melhor a versão de ontem que nada
+            if (this.cache) return this.cache.usinas;
             throw new ServiceUnavailableException('Não foi possível consultar os dados abertos da ANEEL agora. Tente de novo em instantes.');
         }
     }

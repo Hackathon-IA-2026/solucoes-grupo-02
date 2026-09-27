@@ -22,11 +22,7 @@ export class NormaService extends BaseService<NormaEntity> {
         return await this.persist(dto);
     }
 
-    // O feed da empresa: os atos gerais das áreas/subáreas que ela monitora (o feed "do setor
-    // de escolha do usuário"; com `porArea: false` ou sem área marcada, todos os gerais) e os
-    // atos individuais que citam a empresa ou uma usina dela — os de outras empresas ficam de fora.
     async list(plant: PerfilDaEmpresa, source?: NormaSource, porArea = true): Promise<NormaEntity[]> {
-        // normas canônicas são a base do copiloto, não novidades: ficam fora do feed
         const normas = await this.findAllInstances({
             where: { canonica: false, ...(source ? { source } : {}) },
             order: { publishedAt: 'DESC', createdAt: 'DESC' },
@@ -34,7 +30,6 @@ export class NormaService extends BaseService<NormaEntity> {
         return normas.filter((n) => normaInteressa(n, plant, porArea));
     }
 
-    // Normas-base do copiloto (Lei 14.300, REN 1.000...), para ele saber o que a base tem.
     async listCanonicas(): Promise<NormaEntity[]> {
         return await this.findAllInstances({
             where: { canonica: true },
@@ -43,7 +38,6 @@ export class NormaService extends BaseService<NormaEntity> {
         });
     }
 
-    // Novidades já gravadas, com o texto, para o `ai/reclassificar.py` refazer a classificação.
     async listNovidadesComTexto(): Promise<NormaEntity[]> {
         return await this.findAllInstances({ where: { canonica: false }, order: { publishedAt: 'ASC' } });
     }

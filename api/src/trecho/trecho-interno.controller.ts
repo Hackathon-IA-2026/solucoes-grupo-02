@@ -4,9 +4,6 @@ import { NormaService, toNormResponse } from '../norma/norma.service';
 import { TrechoService } from './trecho.service';
 import { BuscaTrechosDto } from './dto/busca-trechos.dto';
 
-// Busca vetorial usada pelo copiloto (serviço Python): recebe o vetor da pergunta e
-// devolve os trechos mais parecidos — normas canônicas e novidades juntas, numa busca
-// só —, cada um com os dados da norma para o copiloto ranquear e citar (código e link).
 @Interno()
 @Controller('interno/trechos')
 export class TrechoInternoController {

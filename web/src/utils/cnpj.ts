@@ -8,7 +8,6 @@ export function mascararCnpj(valor: string): string {
     .replace(/(\d{4})(\d)/, '$1-$2');
 }
 
-// Mesma conferência dos dígitos verificadores que a API faz (api/src/utils/cnpj.ts).
 export function cnpjValido(valor: string): boolean {
   const cnpj = valor.replace(/\D/g, '');
   if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) return false;

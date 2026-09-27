@@ -28,9 +28,7 @@ const FALLBACK: CopilotAnswer = {
     citations: [],
 };
 
-// A resposta do LLM chega como texto (com markdown simples, no máximo). Vira HTML
-// aqui, escapado: o modelo lê texto de norma externa e não pode injetar HTML no
-// front, que renderiza a resposta com innerHTML.
+// Escapado: o front renderiza a resposta com innerHTML.
 function textoParaHtml(texto: string): string {
     const inline = (s: string) => escapeHtml(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     return texto
@@ -49,7 +47,6 @@ function textoParaHtml(texto: string): string {
         .join('');
 }
 
-// O front abre o link da citação: só http(s), nunca `javascript:` vindo do serviço de IA.
 function linkSeguro(v: unknown): string | undefined {
     return typeof v === 'string' && /^https?:\/\//i.test(v) ? v : undefined;
 }
@@ -78,12 +75,6 @@ export class CopilotService {
         return (await this.perguntarAoServicoDeIa(question, companyId, historico, normaId)) ?? (await this.buscarPorPalavraChave(question));
     }
 
-    // Com AI_SERVICE_URL no .env, a pergunta vai pro microsserviço Python de RAG junto
-    // com o perfil da usina (o "Envia perfil do cliente e dúvida" do diagrama).
-    // Contrato: POST {AI_SERVICE_URL}/ask {question, perfil, historico, normaId?, novidades, canonicas}
-    // -> {answer, citations} (ai/servidor.py), com `novidades` = catalogoParaOCopiloto (o feed da empresa),
-    // com a mesma chave interna das rotas /interno — cada pergunta gasta chamadas de LLM.
-    // Se o serviço não estiver configurado ou falhar, cai na busca por palavra-chave.
     private async perguntarAoServicoDeIa(
         question: string,
         companyId: string,
@@ -94,7 +85,6 @@ export class CopilotService {
         if (!base) return null;
         try {
             const plant = await this.plantService.getPlant(companyId);
-            // a norma em foco pode estar fora das áreas monitoradas (aberta por um alerta ou link)
             const emFoco = normaId ? await this.normaService.getById(normaId).catch(() => null) : null;
             const novidades = catalogoParaOCopiloto(await this.normaService.list(plant), emFoco);
             const canonicas = (await this.normaService.listCanonicas()).map((n) => ({ code: n.code ?? n.title, title: n.title, url: n.url ?? null }));
@@ -102,7 +92,7 @@ export class CopilotService {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-internal-key': this.config.get<string>('INTERNAL_API_KEY', '') },
                 body: JSON.stringify({ question, perfil: toPlantResponse(plant), historico, normaId: emFoco?.id ?? null, novidades, canonicas }),
-                signal: AbortSignal.timeout(180_000), // a API gratuita da NVIDIA leva de 20 a 50s por resposta; a busca externa faz 2 chamadas
+                signal: AbortSignal.timeout(180_000),
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = (await res.json()) as { answer?: unknown; citations?: unknown };
@@ -114,8 +104,6 @@ export class CopilotService {
         }
     }
 
-    // Implementação "de vitrine": busca por palavra-chave nos `trechos` (sem
-    // embedding/LLM) e devolve os trechos encontrados, com a norma de cada um.
     private async buscarPorPalavraChave(question: string): Promise<CopilotAnswer> {
         const trechos = await this.trechoService.searchByText(question, 3);
         if (trechos.length === 0) return FALLBACK;
@@ -127,7 +115,7 @@ export class CopilotService {
                 return { label: label || 'Trecho relacionado', excerpt: t.texto, normId: t.normaId, url: linkSeguro(norma?.url) };
             }),
         );
-        // Um artigo longo vira mais de um trecho com o mesmo rótulo — o front usa o rótulo como chave.
+        // O front usa o rótulo como chave.
         const unicas = citations.filter((c, i) => citations.findIndex((o) => o.label === c.label) === i);
 
         const answer = `<p>Encontrei ${trechos.length} trecho${trechos.length > 1 ? 's' : ''} relacionado${trechos.length > 1 ? 's' : ''} à sua pergunta:</p><ul>${trechos

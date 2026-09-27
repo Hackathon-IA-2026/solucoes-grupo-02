@@ -2,7 +2,6 @@ import { dividirEmTrechos, identificadoresCitados, mapearNorma, NormaMapeada, pa
 
 const HOJE = new Date('2026-09-24T12:00:00Z');
 
-// Uma linha como sai do `coletar_df` (ai/models/summarizer.py) via df.to_json(orient="records").
 const linhaDoPipeline = {
     data: '23/09/2026',
     orgao: 'Ministério de Minas e Energia/Agência Nacional de Energia Elétrica/Superintendência de Regulação',

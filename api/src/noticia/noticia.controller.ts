@@ -21,8 +21,6 @@ export class NoticiaController {
         return toNoticiaResponse(noticia);
     }
 
-    // Padrão: só as notícias das áreas que a empresa monitora (sem área marcada, todas).
-    // `escopo=todas` ignora as áreas; `setor` filtra por uma área.
     @Get()
     async list(@Request() req: { user: UserPayload }, @Query('setor') setor?: string, @Query('escopo') escopo?: 'minhas' | 'todas') {
         const areas = escopo === 'todas' ? undefined : (await this.plantService.getPlant(req.user.companyId)).areas;
@@ -30,7 +28,6 @@ export class NoticiaController {
         return noticias.map(toNoticiaResponse);
     }
 
-    // Roda a coleta agora (o cron roda a cada 3 horas e quando a API sobe).
     @Interno()
     @Post('coletar')
     @HttpCode(200)

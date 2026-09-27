@@ -16,11 +16,10 @@ export class UserEntity extends BaseEntity {
     @Column({ name: 'phone_number', unique: true, nullable: true })
     phoneNumber!: string;
 
-    // Cargo da pessoa (texto livre). A permissão fica em `isAdmin`.
+    // Cargo (texto livre); a permissão é `isAdmin`.
     @Column({ nullable: true })
     role?: string;
 
-    // Nulo só em usuários antigos, até a migração da inicialização (CompanieMigrationService) rodar.
     @Column({ name: 'company_id', type: 'uuid', nullable: true })
     companyId?: string;
 
@@ -28,11 +27,9 @@ export class UserEntity extends BaseEntity {
     @JoinColumn({ name: 'company_id' })
     company?: CompanieEntity;
 
-    // Quem cadastra a empresa vira admin; admins convidam e removem usuários da mesma empresa.
     @Column({ name: 'is_admin', default: false })
     isAdmin!: boolean;
 
-    // Convidado que ainda não abriu o link para criar a senha.
     @Column({ name: 'convite_pendente', default: false })
     invitePending!: boolean;
 

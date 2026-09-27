@@ -19,7 +19,6 @@ export function SummariesPage() {
     if (!ativa && normas.length) setAtiva(normas[0].id);
   }, [normas, ativa]);
 
-  // A norma aberta por link (alerta, painel) pode estar fora das áreas monitoradas: busca ela direto.
   const { data: avulsa } = useQuery({
     queryKey: ['norm', ativa],
     queryFn: () => api.getNorm(ativa!),
@@ -112,7 +111,6 @@ export function SummariesPage() {
                     {norma.changes.map((m, i) => (
                       <li key={`${i}-${m}`} className="mt-1.5 max-w-[72ch] text-[14.4px]">
                         {m}
-                        {/* Trecho literal conferido contra o texto da norma: de onde saiu a afirmação. */}
                         {norma.changeSources?.[i] && (
                           <blockquote className="mt-1 border-l-2 border-line-strong pl-2.5 text-[12.8px] italic text-ink-3">
                             “{norma.changeSources[i]}”

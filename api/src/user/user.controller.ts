@@ -5,7 +5,6 @@ import { EquipeService } from './equipe.service';
 import { InviteUserDto } from './dto/invite-user.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 
-// Equipe da empresa — só admins. Os dados do próprio usuário ficam em /auth/me.
 @UseGuards(AdminGuard)
 @Controller('user')
 export class UserController {

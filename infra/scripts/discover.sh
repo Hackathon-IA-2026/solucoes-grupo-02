@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sexta, passo 1: reconhecimento da conta. Não cria nada.
+# Reconhecimento da conta. Não cria nada.
 source "$(dirname "$0")/_common.sh"
 set +e
 

@@ -17,7 +17,6 @@ function norma(id: string, extra: Partial<NormaEntity> = {}): NormaEntity {
 }
 
 describe('catalogoParaOCopiloto', () => {
-    // o feed vem do mais recente para o mais antigo
     const feed = [
         norma('1', { publishedAt: '2026-09-25' }),
         norma('2', { publishedAt: '2026-09-20', deadlineAt: '2026-10-20', deadline: 'Envio de propostas até 20/10/2026' }),

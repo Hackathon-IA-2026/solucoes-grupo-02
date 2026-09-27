@@ -1,14 +1,3 @@
-# ============================================================
-# Energy Start — Coletor (2º LLM): Claude no Amazon Bedrock ou API da NVIDIA
-# (com BEDROCK_MODEL_ID usa o Bedrock, como no deploy da AWS; sem ela, a NVIDIA)
-#
-# Roda DEPOIS do classificador, só nas normas com relevância >= 2.
-# Para cada norma, extrai o que mudou (antes/depois, valores, prazos)
-# e copia trechos literais, que o código confere contra o texto original.
-#
-# Cole esta célula no Colab, depois da célula do classificador.
-# ============================================================
-
 import difflib
 import json
 import re
@@ -22,20 +11,16 @@ from dotenv import load_dotenv
 
 from functions import bedrock
 
-load_dotenv()  # lê NVIDIA_KEY_SUMMARIZER do arquivo .env
+load_dotenv()
 
 URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 MODELO = "google/gemma-4-31b-it"
 CHAVE = f"Bearer {os.getenv('NVIDIA_KEY_SUMMARIZER', '')}"
-# Espera entre normas: a API gratuita da NVIDIA limita as chamadas por minuto. No Bedrock não
-# precisa (o boto3 espera sozinho quando a cota estoura).
+# A API gratuita da NVIDIA limita as chamadas por minuto.
 PAUSA = 0 if bedrock.MODELO else 7
 
 SIMILARIDADE_MINIMA = 0.90  # tolerância da conferência de citação
 
-# ------------------------------------------------------------
-# 1. Prompt
-# ------------------------------------------------------------
 PROMPT_COLETOR = """Você é um analista regulatório do setor elétrico brasileiro.
 Leia a norma abaixo e extraia o que mudou, para um alerta enviado a donos de usinas.
 
@@ -71,15 +56,12 @@ FORMATO DA RESPOSTA: apenas um objeto JSON, sem texto antes ou depois, sem ```:
 }"""
 
 
-# ------------------------------------------------------------
-# 2. Chamada ao modelo
-# ------------------------------------------------------------
 def _ler_json(resposta):
     limpo = re.sub(r"```(?:json)?", "", resposta)
     return json.loads(limpo[limpo.find("{") : limpo.rfind("}") + 1])
 
 
-def chamar_nvidia(mensagens, modelo, max_tokens=8192):  # normas com muitas mudanças estouravam 2048
+def chamar_nvidia(mensagens, modelo, max_tokens=8192):
     headers = {"Authorization": f"{CHAVE}", "Accept": "application/json"}
     payload = {
         "model": modelo,
@@ -98,13 +80,9 @@ def chamar_nvidia(mensagens, modelo, max_tokens=8192):  # normas com muitas muda
 
 
 def chamar_llm(mensagens, modelo, max_tokens=8192):
-    """Claude no Bedrock se BEDROCK_MODEL_ID estiver definida; senão, `modelo` na API da NVIDIA."""
     return bedrock.conversar(mensagens, max_tokens) if bedrock.MODELO else chamar_nvidia(mensagens, modelo, max_tokens)
 
 
-# ------------------------------------------------------------
-# 3. Conferência de citação (sem IA)
-# ------------------------------------------------------------
 def _normalizar(t):
     t = unicodedata.normalize("NFKD", t or "").encode("ascii", "ignore").decode()
     return re.sub(r"[^a-z0-9 ]", " ", re.sub(r"\s+", " ", t.lower())).strip()
@@ -143,9 +121,6 @@ def conferir(dados, texto_norma):
     return aprovados
 
 
-# ------------------------------------------------------------
-# 4. Coletar uma norma
-# ------------------------------------------------------------
 def coletar_texto(texto, modelo=MODELO, max_chars=60000):
     mensagens = [
         {"role": "system", "content": PROMPT_COLETOR},
@@ -175,9 +150,6 @@ def coletar_texto(texto, modelo=MODELO, max_chars=60000):
     }
 
 
-# ------------------------------------------------------------
-# 5. Coletar o DataFrame (só o que o classificador marcou)
-# ------------------------------------------------------------
 def coletar_df(df, coluna_texto="texto", relevancia_minima=1, pausa=PAUSA):
     alvo = df[df["relevancia"] >= relevancia_minima] if "relevancia" in df else df
     print(f"{len(alvo)} de {len(df)} normas vão para o coletor\n")
@@ -221,12 +193,3 @@ def coletar_df(df, coluna_texto="texto", relevancia_minima=1, pausa=PAUSA):
             f"({100 * aprovados / gerados:.0f}%)"
         )
     return saida
-
-
-# ------------------------------------------------------------
-# Uso:
-#   df_class = classificar_df(df_normas)
-#   df_final = coletar_df(df_class)
-#   df_final[["titulo", "resumo", "mudancas", "prazos", "acao_necessaria"]]
-
-# ------------------------------------------------------------

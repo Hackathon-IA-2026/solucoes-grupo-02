@@ -1,12 +1,4 @@
-"""
-Energy Start — Amazon Bedrock: o Claude (classificador, resumidor e copiloto) e o Titan (embeddings)
-
-Cada módulo usa o Bedrock quando a variável do modelo está definida e, sem ela, a API da NVIDIA:
-    BEDROCK_MODEL_ID            ex.: us.anthropic.claude-haiku-4-5-20251001-v1:0
-    BEDROCK_EMBEDDING_MODEL_ID  ex.: amazon.titan-embed-text-v2:0
-Na AWS as credenciais vêm do papel da task (não há chave); fora dela, do `aws configure` ou das
-variáveis AWS_* do ambiente.
-"""
+"""Claude e Titan no Amazon Bedrock, usados quando BEDROCK_MODEL_ID / BEDROCK_EMBEDDING_MODEL_ID estão definidas."""
 
 import json
 import os
@@ -21,12 +13,11 @@ MODELO = os.getenv("BEDROCK_MODEL_ID", "").strip()
 MODELO_EMBEDDING = os.getenv("BEDROCK_EMBEDDING_MODEL_ID", "").strip()
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 
-# Erros que uma nova tentativa não resolve: modelo errado, sem acesso ao modelo, sem credenciais.
-# Viram RuntimeError, que o pipeline trata como "para na hora" (igual à chave inválida da NVIDIA).
+# Erros que uma nova tentativa não resolve: viram RuntimeError e param o pipeline.
 ERROS_DE_CONFIGURACAO = ("AccessDeniedException", "ResourceNotFoundException", "ValidationException", "UnrecognizedClientException")
 
 _cliente = None
-_trava = threading.Lock()  # os embeddings chamam em paralelo, e o boto3 não cria clientes em paralelo com segurança
+_trava = threading.Lock()  # o boto3 não cria clientes em paralelo com segurança
 
 
 def _cliente_bedrock():
@@ -58,8 +49,7 @@ def _erros_de_configuracao(modelo: str, variavel: str):
 
 
 def _turnos(mensagens: list[dict]) -> tuple[list[dict], list[dict]]:
-    """Formato da API Converse: system separado, e a conversa alternando user/assistant,
-    começando por user (turnos seguidos do mesmo papel são juntados)."""
+    """API Converse: system separado e turnos alternando user/assistant, começando por user."""
     system = [{"text": m["content"]} for m in mensagens if m["role"] == "system"]
     turnos: list[dict] = []
     for m in mensagens:

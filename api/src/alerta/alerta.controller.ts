@@ -11,10 +11,6 @@ export class AlertaController {
         private readonly alertEngineService: AlertEngineService,
     ) {}
 
-    // Cruza `limites` x `configuracoes` de novo e cria os alertas que ainda não
-    // existem. O front chama isso logo depois de salvar a usina (PUT /plants/me)
-    // pra dar a sensação de "notifica automaticamente" descrita no pitch —
-    // tecnicamente são duas chamadas em sequência, não uma transação única.
     @Post('check')
     async check(@Request() req: { user: UserPayload }) {
         const criados = await this.alertEngineService.run(req.user.companyId);

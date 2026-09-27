@@ -6,7 +6,6 @@ import { IsPublic } from './auth/decorators/is-public.decorator';
 export class AppController {
     constructor(private readonly dataSource: DataSource) {}
 
-    // Confirma que a API e o banco estão no ar (usado pelo deploy e pelo serviço Python).
     @IsPublic()
     @Get('health')
     async health() {

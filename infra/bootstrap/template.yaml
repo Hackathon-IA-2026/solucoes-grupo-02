@@ -1,12 +1,6 @@
-# Bootstrap da CDK ajustado à conta do hackathon (gerado de `npx cdk bootstrap --show-template`, CDK 2.270).
-#
-# Única mudança: o repositório ECR das imagens NÃO é criado aqui. O modelo padrão cria o repositório
-# e configura nele uma regra de limpeza (ecr:PutLifecyclePolicy) e uma política de acesso
-# (ecr:SetRepositoryPolicy) — ações que a conta bloqueia ("ECR apenas cria e consulta repositórios").
-# O repositório é criado antes, sem essas configurações, por infra/scripts/bootstrap.sh; aqui ele só
-# é referenciado pelo nome (permissão do papel de publicação de imagens e a saída ImageRepositoryName).
-#
-# Para atualizar para outra versão da CDK: gere o modelo de novo e repita a mesma mudança.
+# Bootstrap da CDK (npx cdk bootstrap --show-template, CDK 2.270) sem criar o repositório ECR:
+# a conta bloqueia ecr:PutLifecyclePolicy e ecr:SetRepositoryPolicy. O repositório é criado por
+# infra/scripts/bootstrap.sh. Ao atualizar a CDK, gere o modelo de novo e repita a mudança.
 Description: This stack includes resources needed to deploy AWS CDK apps into this environment
 Parameters:
   TrustedAccounts:

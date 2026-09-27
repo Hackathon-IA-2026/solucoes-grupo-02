@@ -3,9 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
 import { timingSafeEqual } from 'crypto';
 
-// Protege as rotas /interno/* (chamadas pelo serviço Python, nunca pelo front).
-// Em vez do JWT de usuário, exige o header `x-internal-key` igual ao INTERNAL_API_KEY
-// do .env. Sem a variável configurada, as rotas ficam desligadas.
 @Injectable()
 export class InternoKeyGuard implements CanActivate {
     constructor(private readonly config: ConfigService) {}

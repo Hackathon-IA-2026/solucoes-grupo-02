@@ -10,7 +10,6 @@ export interface PlantChannels {
 
 @Entity({ name: 'configuracoes' })
 export class PlantEntity extends BaseEntity {
-    // Uma configuração de usina por empresa. Nulo só na linha antiga, até a migração da inicialização.
     @Column({ name: 'company_id', type: 'uuid', nullable: true, unique: true })
     companyId?: string;
 
@@ -54,9 +53,6 @@ export class PlantEntity extends BaseEntity {
     @Column({ name: 'subareas', type: 'text', array: true, default: '{}' })
     subareas!: string[];
 
-    // Como a empresa aparece nos atos individuais da ANEEL/MME (despacho que libera uma usina,
-    // multa, REIDI...): CEGs das usinas (normalizados, ver utils/ceg.ts) e CNPJs das SPEs donas
-    // delas (só dígitos). O CNPJ da própria empresa já conta, não precisa repetir aqui.
     @Column({ name: 'cegs', type: 'text', array: true, default: '{}' })
     cegs!: string[];
 

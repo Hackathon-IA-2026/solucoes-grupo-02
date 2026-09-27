@@ -1,19 +1,3 @@
-# ============================================================
-# Energy Start — Copiloto regulatório (3º LLM)
-#
-# Responde perguntas do usuário sobre regulação do setor elétrico.
-#
-# FLUXO (uma busca só, não cascata):
-#   1. Recupera pedaços de normas canônicas E de novidades na MESMA busca (e, se o usuário
-#      veio de uma norma, os trechos dela)
-#   2. Ranqueia dando peso maior para novidade recente (ela altera a canônica)
-#   3. Junta o catálogo que a API manda: o resumo, o prazo e o "o que fazer" das novidades do
-#      feed da empresa e a lista das normas-base — é o que responde "quais prazos vencem?"
-#   4. LLM responde citando trecho + link de cada afirmação; se nada responde -> busca externa
-#
-# Os vetores ficam na API (tabela de trechos); a busca é POST /interno/trechos/busca.
-# ============================================================
-
 import json
 import os
 import re
@@ -31,21 +15,14 @@ from functions.trechos import dividir_em_trechos
 
 load_dotenv()
 
-# Modelo que escreve a resposta. Com BEDROCK_MODEL_ID (ex.: us.anthropic.claude-haiku-4-5-20251001-v1:0),
-# usa o Claude no Amazon Bedrock (functions/bedrock.py) — responde em poucos segundos. Sem ela, usa a
-# API gratuita da NVIDIA, que leva de 20 a 50s por resposta.
 URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 MODELO = "google/gemma-4-31b-it"
 CHAVE = f"Bearer {os.getenv('NVIDIA_KEY_COPILOTO') or os.getenv('NVIDIA_KEY_SUMMARIZER', '')}"
 
 CANDIDATOS = 20          # trechos trazidos da base em cada busca
 TOP_K = 8                # trechos que vão para o LLM
-# Similaridade mínima (cosseno) para um trecho ir ao LLM. Calibrado com perguntas reais: trechos
-# certos ficaram entre 0,46 e 0,57, e trechos sem relação chegaram a 0,41. Só a similaridade não
-# basta para saber se a base responde (numa pergunta sobre baterias, a lei de eólica offshore deu
-# 0,52), então o LLM também julga: se nenhuma fonte responde, ele devolve SEM_RESPOSTA e o fluxo
-# segue para a busca externa. Calibrado com o embedding da NVIDIA: com o Titan (Bedrock) as
-# similaridades mudam, e o limiar precisa ser recalibrado pelos valores que o _registrar mostra no log.
+# Calibrado com o embedding da NVIDIA (trechos certos entre 0,46 e 0,57, sem relação até 0,41);
+# com o Titan as similaridades mudam e o limiar precisa ser recalibrado.
 LIMIAR = 0.40
 PESO_NOVIDADE = 0.20     # bônus de uma novidade publicada hoje; cai até zero em 1 ano
 BONUS_NORMA = 0.20       # a pergunta citou o número da norma do trecho
@@ -61,10 +38,7 @@ SEM_RESPOSTA = {
 }
 
 
-# ------------------------------------------------------------
-# Referências citadas no texto: "art. 26 da Lei 14.300", "REN nº 1.000/2021"
-# (embedding é ruim com número exato; a busca e o ranking tratam isso à parte)
-# ------------------------------------------------------------
+# Referências citadas ("art. 26 da Lei 14.300"): embedding é ruim com número exato.
 RE_ARTIGO_CITADO = re.compile(r"\bart(?:igo)?s?\.?\s*(\d{1,4})", re.I)
 RE_NORMA_CITADA = re.compile(
     r"\b(?:lei(?:\s+complementar)?|ren|reh|rea|resolu[cç][aã]o(?:\s+(?:normativa|homologat[oó]ria|autorizativa))?|"
@@ -90,13 +64,8 @@ def _artigo_corresponde(rotulo: str | None, artigo: str) -> bool:
     return bool(numeros) and numeros[0] <= int(artigo) <= numeros[-1]
 
 
-# ------------------------------------------------------------
-# 1. Recuperação: canônicas e novidades na mesma busca
-# ------------------------------------------------------------
 def recuperar(vetor: list[float], numeros=(), artigos=(), somente_referencias=False, norma_ids=()) -> list[dict]:
-    """A API compara o vetor da pergunta com todos os trechos da base (normas canônicas e
-    novidades juntas) e devolve os mais parecidos — mais os das normas e artigos citados
-    (pelo número, ou pelo id em `norma_ids`)."""
+    """Trechos mais parecidos da base, mais os das normas e artigos citados."""
     r = requests.post(
         f"{API_URL}/interno/trechos/busca",
         json={
@@ -114,9 +83,6 @@ def recuperar(vetor: list[float], numeros=(), artigos=(), somente_referencias=Fa
     return [{**t, "externa": False} for t in r.json()]
 
 
-# ------------------------------------------------------------
-# 2. Ranking: novidade recente pesa mais; referência citada também
-# ------------------------------------------------------------
 def _dias_desde(data_iso: str | None, hoje: date) -> int | None:
     try:
         return (hoje - datetime.strptime((data_iso or "")[:10], "%Y-%m-%d").date()).days
@@ -163,13 +129,8 @@ def puxar_canonica_relacionada(fontes: list[dict], vetor: list[float]) -> list[d
     return sorted(relacionadas, key=lambda f: f["similaridade"], reverse=True)[:CANONICA_RELACIONADA]
 
 
-# ------------------------------------------------------------
-# 2b. Catálogo que a API manda: o feed da empresa e as normas-base
-# ------------------------------------------------------------
 def fontes_do_catalogo(novidades: list[dict]) -> list[dict]:
-    """Uma fonte por novidade do feed da empresa, com o que o resumidor já extraiu: resumo, o que
-    muda, próximo prazo, o que fazer e quem é afetado. A norma em foco (o usuário veio dela) vem
-    primeiro, da API."""
+    """Uma fonte por novidade do feed, com o que o resumidor já extraiu (resumo, prazo, o que fazer)."""
     fontes = []
     for n in novidades:
         partes = [n.get("lead") or n.get("title") or ""]
@@ -205,9 +166,6 @@ def fonte_das_canonicas(canonicas: list[dict]) -> list[dict]:
     return [{"artigo": None, "texto": texto, "norma": norma, "similaridade": 0.0, "bonus": 0.0, "externa": False, "lista_base": True}]
 
 
-# ------------------------------------------------------------
-# 3. Busca externa: Diário Oficial da União
-# ------------------------------------------------------------
 PALAVRAS_VAZIAS = set(
     "a o e de da do das dos em no na nos nas um uma para por com sem que qual quais como quando onde "
     "é ser são foi sobre isso esse essa este esta minha meu sua seu preciso posso devo fazer até ao aos "
@@ -220,9 +178,7 @@ def _termos_de_busca(pergunta: str) -> str:
     return " ".join([p for p in palavras if p not in PALAVRAS_VAZIAS and len(p) > 2][:6])
 
 
-# A busca do DOU trata palavras soltas como "qualquer uma delas" (os resultados vêm de todos os
-# órgãos e somem no filtro de energia); expressão entre aspas acha o ato certo. O LLM extrai as
-# expressões da pergunta — é uma chamada curta, e só acontece quando a base não responde.
+# A busca do DOU trata palavras soltas como "qualquer uma"; expressão entre aspas acha o ato certo.
 PROMPT_CONSULTA_DOU = """Você monta buscas no Diário Oficial da União para o setor elétrico.
 Da pergunta, extraia de 1 a 3 expressões curtas (2 a 4 palavras), como aparecem em normas
 (ex.: "armazenamento de energia", "geração distribuída", "parecer de acesso").
@@ -238,7 +194,6 @@ def _expressoes_de_busca(pergunta: str) -> list[str]:
         expressoes = [str(e).strip().strip('"') for e in dados.get("expressoes", []) if str(e).strip()]
     except Exception as e:
         print(f"  [busca externa] não consegui gerar as expressões com o LLM ({e}); extraindo da pergunta")
-        # "armazenamento de energia", "parecer de acesso": o jeito como os termos aparecem nas normas
         expressoes = re.findall(r"\b[a-zà-ú]{4,} d[eao]s? [a-zà-ú]{4,}\b", pergunta.lower())[-3:]
     return [f'"{e}"' for e in expressoes[:3]] or [_termos_de_busca(pergunta)]
 
@@ -269,9 +224,7 @@ def _codigo(titulo: str) -> str:
 
 
 def buscar_no_dou(pergunta: str, vetor: list[float]) -> list[dict]:
-    """Procura no DOU (Seção 1, órgãos de energia), lê as primeiras publicações e compara os
-    trechos delas com a pergunta do mesmo jeito que a busca interna. É uma busca de verdade:
-    o LLM só responde com o texto que foi lido, nunca "pesquisando" de memória."""
+    """Busca no DOU e compara os trechos das publicações com a pergunta, como na busca interna."""
     consultas = _expressoes_de_busca(pergunta)
     listas = [_consultar_dou(c) for c in consultas]
     print(f"  [busca externa] consultas {consultas}: {[len(l) for l in listas]} publicação(ões) de energia")
@@ -307,13 +260,10 @@ def buscar_no_dou(pergunta: str, vetor: list[float]) -> list[dict]:
         for t, v in zip(trechos, vetores):
             similaridade = sum(a * b for a, b in zip(v, vetor))
             fontes.append({"artigo": t["artigo"], "texto": t["texto"], "similaridade": similaridade, "norma": norma, "externa": True})
-        time.sleep(1)  # educação com o servidor do governo
+        time.sleep(1)
     return fontes
 
 
-# ------------------------------------------------------------
-# 4. Resposta do LLM, citando trecho + link
-# ------------------------------------------------------------
 PROMPT_COPILOTO = """Você é o copiloto regulatório do Energy Start, para donos e operadores de usinas
 solares, eólicas e de armazenamento no Brasil.
 
@@ -403,7 +353,7 @@ def _cabecalho_fonte(n: int, fonte: dict) -> str:
     return f"[{n}] ({tipo}) {_rotulo(fonte)} — {norma.get('url') or 'sem link'}"
 
 
-SOBRECARGA = (429, 500, 502, 503, 504, 529)  # a API gratuita da NVIDIA devolve 529 quando está cheia
+SOBRECARGA = (429, 500, 502, 503, 504, 529)  # 529: NVIDIA sobrecarregada
 
 
 def chamar_llm(mensagens: list[dict], max_tokens: int = 1024) -> str:
@@ -467,9 +417,6 @@ def gerar_resposta(pergunta: str, fontes: list[dict], perfil: dict | None, histo
     }
 
 
-# ------------------------------------------------------------
-# Fluxo completo
-# ------------------------------------------------------------
 # "E se for acima de 500 kW?", "E para quem...", "e essa lei vale para...": depende da pergunta anterior.
 RE_SEGUIMENTO = re.compile(r"^\s*(e|mas|então|entao)\b|\b(isso|disso|nisso|dela|dele|nesse caso|neste caso|essa lei|essa norma|esse artigo)\b", re.I)
 
@@ -484,15 +431,13 @@ def responder(
 ) -> dict:
     historico = historico or []
     inicio = time.time()
-    # Só pergunta de seguimento busca junto com a anterior: pergunta de assunto novo na mesma
-    # conversa não pode herdar a norma citada antes (o bônus iria para a norma errada).
+    # Só pergunta de seguimento herda a anterior na busca.
     anterior = next((t["content"] for t in reversed(historico) if t.get("role") == "user"), "")
     consulta = f"{anterior}\n{pergunta}" if anterior and RE_SEGUIMENTO.search(pergunta) else pergunta
     numeros, artigos = referencias(consulta)
     vetor = vetorizar([consulta], "query")[0]
 
-    # 1-2. Base interna: canônicas e novidades numa busca só, ranqueadas. A norma em foco entra
-    # com os trechos dela mesmo abaixo do limiar: é dela que o usuário está falando.
+    # A norma em foco entra mesmo abaixo do limiar.
     candidatos = ranquear(recuperar(vetor, numeros, artigos), numeros, artigos)
     fontes = [f for f in candidatos if f["similaridade"] >= LIMIAR or f["bonus"] > 0][:TOP_K]
     if norma_id:
@@ -502,7 +447,6 @@ def responder(
         fontes = do_foco + [f for f in fontes if f.get("id") not in ids_do_foco]
     if fontes:
         fontes += puxar_canonica_relacionada(fontes, vetor)
-    # 3. Catálogo: o resumo das novidades do feed da empresa e a lista das normas-base
     catalogo = fontes_do_catalogo(novidades or []) + fonte_das_canonicas(canonicas or [])
     if fontes or catalogo:
         _registrar("base", fontes, numeros, artigos, inicio, len(catalogo))
@@ -515,7 +459,6 @@ def responder(
         melhor = f"{candidatos[0]['similaridade']:.2f}" if candidatos else "base vazia"
         print(f"[copiloto] nada da base acima do limiar ({LIMIAR}; melhor: {melhor}) — indo para a busca externa")
 
-    # 4. Busca externa no DOU, com o mesmo limiar e o mesmo julgamento do LLM
     externas = [f for f in ranquear(buscar_no_dou(pergunta, vetor), numeros, artigos) if f["similaridade"] >= LIMIAR][:TOP_K]
     if externas:
         _registrar("busca no DOU", externas, numeros, artigos, inicio)

@@ -8,8 +8,6 @@ export type AlertaSeveridade = 'alto' | 'medio' | 'baixo';
 
 @Entity({ name: 'alertas' })
 export class AlertaEntity extends BaseEntity {
-    // Cada empresa tem uma usina, então o alerta é da empresa. Nulo só em alertas
-    // antigos, até a migração da inicialização.
     @Index()
     @Column({ name: 'company_id', type: 'uuid', nullable: true })
     companyId?: string;

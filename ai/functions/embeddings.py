@@ -1,19 +1,5 @@
-"""
-Energy Start — Embeddings (vetores) dos trechos das normas
-
-Os vetores vão para a API junto com cada norma (coluna "trechos") e são o que
-o copiloto usa para achar os trechos mais parecidos com a pergunta do usuário.
-
-Dois modelos, e os vetores de um não servem para o outro:
-  - Com BEDROCK_EMBEDDING_MODEL_ID: Titan Text Embeddings V2 no Amazon Bedrock
-    (multilíngue), com 512 dimensões. O tamanho é diferente do da NVIDIA de
-    propósito: a API ignora trechos com vetor de outro tamanho, então vetores dos
-    dois modelos nunca são comparados. Trocar de modelo exige vetorizar a base de
-    novo (carregar_canonicas.py e main.py de cada dia já coletado).
-  - Sem ela: nvidia/nemotron-3-embed-1b na API da NVIDIA (multilíngue). Ele devolve
-    2048 dimensões; guardamos só as primeiras 1024 (o modelo é treinado para isso —
-    nos testes a separação entre trecho certo e errado ficou igual).
-Os vetores são normalizados, para a similaridade de cosseno virar um produto escalar.
+"""Vetores dos trechos: Titan no Bedrock (512 dimensões) ou nemotron na NVIDIA (as primeiras 1024 de 2048).
+Os tamanhos diferem de propósito: a API ignora vetores de outro tamanho, e os modelos nunca se misturam.
 """
 
 import math
@@ -43,8 +29,7 @@ def _normalizar(v: list[float]) -> list[float]:
 
 
 def vetorizar(textos: list[str], tipo: str = "passage") -> list[list[float]]:
-    """tipo="passage" para trechos de norma, tipo="query" para a pergunta do usuário
-    (só a NVIDIA diferencia; o Titan vetoriza os dois do mesmo jeito)."""
+    """tipo: "passage" para trechos, "query" para a pergunta (só a NVIDIA diferencia)."""
     if bedrock.MODELO_EMBEDDING:
         with ThreadPoolExecutor(max_workers=PARALELO) as executor:
             return [_normalizar(v) for v in executor.map(lambda t: bedrock.vetorizar(t, DIMENSOES), textos)]
@@ -84,10 +69,7 @@ def _lista(v) -> list:
 
 
 def texto_da_novidade(linha) -> str:
-    """Trecho de busca de uma novidade, montado com a saída do resumidor. O texto bruto de
-    um despacho é quase todo formalidade ("O DIRETOR-GERAL... resolve"); o resumo e as
-    mudanças dizem do que ele trata. Cada mudança leva o trecho literal que o resumidor
-    conferiu contra a norma, para o copiloto citar a norma, e não só o resumo."""
+    """Trecho "Resumo" da novidade: o texto bruto de um despacho é quase todo formalidade."""
     resumo = str(linha.get("resumo") or "").strip()
     if not resumo or resumo.startswith("ERRO"):
         return ""
@@ -112,10 +94,7 @@ def texto_da_novidade(linha) -> str:
 
 
 def trechos_da_norma(linha, coluna_texto: str = "texto") -> list[dict]:
-    """Divide a norma em trechos e calcula o vetor de cada um. Novidade com resumo ganha
-    também o trecho "Resumo" (texto_da_novidade), que é o que a busca acha mais fácil.
-    O título entra no texto vetorizado (não no trecho guardado): assim "Lei 14.300"
-    ou "Despacho 3.708" na pergunta também ajudam a achar o trecho certo."""
+    """Trechos da norma com vetor. O título entra no texto vetorizado, não no trecho guardado."""
     titulo = str(linha.get("titulo") or "")
     trechos = dividir_em_trechos(str(linha.get(coluna_texto) or ""))
     resumo = texto_da_novidade(linha)

@@ -4,8 +4,6 @@ import { AlertEngineService } from './alert-engine.service';
 
 const HORA = 60 * 60 * 1000;
 
-// E-mail de resumo pra quem escolheu "Resumo diário" ou "Resumo semanal" na Central
-// de Alertas (com "Imediato", o motor já manda na hora e isso aqui não faz nada).
 @Injectable()
 export class AlertDigestService {
     constructor(private readonly alertEngine: AlertEngineService) {}

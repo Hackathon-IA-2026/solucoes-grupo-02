@@ -1,9 +1,3 @@
-# ============================================================
-# Energy Start — Classificador (1º LLM): Claude no Amazon Bedrock ou API da NVIDIA
-# Com BEDROCK_MODEL_ID usa o Bedrock (é o que o deploy na AWS faz). Sem ela, usa a NVIDIA:
-# funciona no Colab (chave nos Secrets 🔑) e no VS Code (chave no arquivo .env).
-# ============================================================
-
 import difflib
 import json
 import re
@@ -18,21 +12,14 @@ from dotenv import load_dotenv
 
 from functions import bedrock
 
-load_dotenv()  # lê NVIDIA_KEY_CLASSIFIER do arquivo .env
-
-# MODELO = "google/diffusiongemma-26b-a4b-it"
-# MODELO = "google/gemma-4-31b-it"
+load_dotenv()
 
 URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 MODELO = "openai/gpt-oss-20b"
 CHAVE = f"Bearer {os.getenv('NVIDIA_KEY_CLASSIFIER', '')}"
-# Espera entre normas: a API gratuita da NVIDIA limita as chamadas por minuto. No Bedrock não
-# precisa (o boto3 espera sozinho quando a cota estoura).
+# A API gratuita da NVIDIA limita as chamadas por minuto.
 PAUSA = 0 if bedrock.MODELO else 7
 
-# ------------------------------------------------------------
-# 1. Taxonomia: áreas e subáreas do protótipo
-# ------------------------------------------------------------
 TAXONOMIA = {
     "Solar": {
         "Geração distribuída": "micro e minigeração distribuída (MMGD), Sistema de Compensação "
@@ -60,9 +47,6 @@ TAXONOMIA = {
 }
 
 
-# ------------------------------------------------------------
-# 2. Prompt
-# ------------------------------------------------------------
 def montar_prompt():
     linhas = []
     for area, subs in TAXONOMIA.items():
@@ -127,9 +111,6 @@ Em ato individual, o impacto na empresa citada:
 3 = cria obrigação, prazo ou penalidade, nega pedido ou revoga autorização"""
 
 
-# ------------------------------------------------------------
-# 3. Chamada ao modelo para um texto
-# ------------------------------------------------------------
 def _ler_json(resposta):
     limpo = re.sub(r"```(?:json)?", "", resposta)
     return json.loads(limpo[limpo.find("{") : limpo.rfind("}") + 1])
@@ -142,14 +123,12 @@ def _chave(t):
 
 
 def _limpar_nome(nome):
-    """O modelo às vezes copia a linha inteira do prompt:
-    'Conexão e acesso — acesso e conexão à rede...' ou 'Solar > Conexão e acesso'.
-    Aqui fica só o nome."""
+    """Só o nome, sem a descrição ou o "Área >" que o modelo às vezes copia do prompt."""
     n = str(nome or "")
     n = re.split(r"\s+[—–-]\s+|:", n)[
         0
-    ]  # corta a descrição após travessão ou dois-pontos
-    return n.split(">")[-1].strip()  # se veio "Área > Subárea", fica a última parte
+    ]
+    return n.split(">")[-1].strip()
 
 
 def _achar(nome, opcoes):
@@ -158,7 +137,7 @@ def _achar(nome, opcoes):
     alvo = _chave(_limpar_nome(nome))
     if alvo in chaves:
         return chaves[alvo]
-    for k, oficial in chaves.items():  # o nome começa com a opção oficial
+    for k, oficial in chaves.items():
         if alvo.startswith(k) or k.startswith(alvo):
             return oficial
     perto = difflib.get_close_matches(alvo, list(chaves), n=1, cutoff=0.85)
@@ -184,8 +163,8 @@ def chamar_nvidia(mensagens):
     payload = {
         "model": MODELO,
         "messages": mensagens,
-        "temperature": 0,  # mesma norma -> mesma resposta
-        "max_tokens": 1024,  # suficiente para o JSON
+        "temperature": 0,
+        "max_tokens": 1024,
         "stream": False,
     }
     r = requests.post(URL, headers=headers, json=payload, timeout=120)
@@ -193,24 +172,23 @@ def chamar_nvidia(mensagens):
         raise RuntimeError(
             "Chave inválida ou sem permissão. Confira NVIDIA_KEY_CLASSIFIER no .env."
         )
-    r.raise_for_status()  # outros erros (limite, servidor) sobem para nova tentativa
+    r.raise_for_status()
     return r.json()["choices"][0]["message"]["content"] or ""
 
 
 def chamar_llm(mensagens):
-    """Claude no Bedrock se BEDROCK_MODEL_ID estiver definida; senão, a API da NVIDIA."""
     return bedrock.conversar(mensagens, max_tokens=1024) if bedrock.MODELO else chamar_nvidia(mensagens)
 
 
-# Na dúvida, "geral": ato geral segue pelo filtro de relevância; um individual marcado
-# como geral só vira ruído, enquanto um geral marcado como individual some do feed.
+# Na dúvida, "geral": um ato geral marcado como individual sumiria do feed.
+
+
 def _abrangencia(dados):
     return "individual" if str(dados.get("abrangencia", "")).strip().lower() == "individual" else "geral"
 
 
 def _relevancia(dados):
-    """0 a 3. Se o modelo classificou mas esqueceu a relevância (ou mandou algo que não é número),
-    assume 2 (média). Um 0 explícito continua 0 — `or 2` transformava esse 0 em 2."""
+    """0 a 3; assume 2 se o modelo não mandar um número."""
     try:
         return max(0, min(3, int(dados.get("relevancia"))))
     except (TypeError, ValueError):
@@ -249,10 +227,9 @@ def classificar_texto(texto, titulo="", max_chars=40000):
                 "subarea": [
                     f"{a} > {s}" for a, s in pares
                 ],  # ex.: "Solar > Cortes de geração"
-                # ato individual vale para a empresa citada mesmo sem subárea
                 "relevancia": _relevancia(dados) if pares or abrangencia == "individual" else 0,
                 "temas": dados.get("temas", [])[:4],
-                "subarea_bruta": brutos,  # o que o modelo respondeu, antes da validação
+                "subarea_bruta": brutos,
                 "justificativa": dados.get("justificativa", ""),
             }
         except (json.JSONDecodeError, ValueError):
@@ -260,9 +237,6 @@ def classificar_texto(texto, titulo="", max_chars=40000):
     return dict(RESULTADO_VAZIO, justificativa="ERRO: resposta inválida")
 
 
-# ------------------------------------------------------------
-# 4. Classificar o DataFrame inteiro
-# ------------------------------------------------------------
 def classificar_df(df, coluna_texto="texto", pausa=PAUSA):
     resultados = []
     for i, (_, linha) in enumerate(df.iterrows(), start=1):
@@ -272,7 +246,7 @@ def classificar_df(df, coluna_texto="texto", pausa=PAUSA):
                 r = classificar_texto(texto, titulo)
                 break
             except RuntimeError:
-                raise  # chave errada: para na hora
+                raise
             except Exception as e:
                 print(f"  erro na tentativa {tentativa + 1}: {e} — esperando 30s")
                 time.sleep(30)
@@ -287,10 +261,3 @@ def classificar_df(df, coluna_texto="texto", pausa=PAUSA):
         resultados.append(r)
         time.sleep(pausa)
     return pd.concat([df.reset_index(drop=True), pd.DataFrame(resultados)], axis=1)
-
-
-# ------------------------------------------------------------
-# Uso:
-#   teste = classificar_df(novidades.head(1))
-#   teste[["titulo", "area", "subarea", "relevancia", "temas", "justificativa"]]
-# ------------------------------------------------------------

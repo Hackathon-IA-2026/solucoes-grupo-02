@@ -1,15 +1,4 @@
-"""
-Energy Start — Envio do resultado do pipeline para a API
-
-Manda o DataFrame final (saída do coletar_df) para POST /interno/ingestao.
-A API grava normas, trechos e limites e dispara os alertas de cada empresa
-(norma nova nas áreas que ela monitora, limite que a usina não cumpre).
-
-Precisa no .env:
-    API_URL=http://localhost:3000        (no docker-compose: http://api:3333;
-                                          no deploy da AWS: https://<host>/api)
-    INTERNAL_API_KEY=<a mesma chave configurada na API>
-"""
+"""Envia o DataFrame final do pipeline para POST /interno/ingestao."""
 
 import json
 import os
@@ -21,8 +10,7 @@ load_dotenv()
 
 API_URL = os.getenv("API_URL", "http://localhost:3000").rstrip("/")
 CHAVE = os.getenv("INTERNAL_API_KEY", "")
-# A API aceita até 20 MB por requisição. Cada norma leva o texto completo e, com a
-# coluna "trechos", um vetor de 1024 números por trecho (a REN 1.000 sozinha passa de 8 MB).
+# A API aceita até 20 MB por requisição; a REN 1.000 com vetores passa de 8 MB.
 TAMANHO_MAXIMO_LOTE = 8 * 1024 * 1024
 
 
@@ -42,8 +30,7 @@ def _lotes(normas: list[dict]) -> list[tuple[int, list[dict]]]:
 
 
 def buscar_clientes() -> dict:
-    """Raízes de CNPJ e CEGs de todos os clientes (GET /interno/clientes/identificadores).
-    Sem a API, devolve listas vazias: aí nenhum ato individual segue no pipeline."""
+    """Raízes de CNPJ e CEGs dos clientes; listas vazias se a API não responder."""
     try:
         r = requests.get(f"{API_URL}/interno/clientes/identificadores", headers={"x-internal-key": CHAVE}, timeout=60)
         r.raise_for_status()
@@ -62,8 +49,7 @@ def enviar_para_api(df) -> dict:
     if not CHAVE:
         raise RuntimeError("INTERNAL_API_KEY não configurada no .env — a API recusa a ingestão sem ela.")
 
-    # to_json (e não to_dict): converte o NaN do pandas em null, e NaN não é JSON válido.
-    # Não envie a partir do CSV: nele as listas viram texto ("['Solar']").
+    # to_json converte NaN em null (NaN não é JSON válido).
     normas = json.loads(df.to_json(orient="records", force_ascii=False))
 
     for i, lote in _lotes(normas):

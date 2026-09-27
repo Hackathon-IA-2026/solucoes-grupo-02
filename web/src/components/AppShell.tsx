@@ -61,7 +61,7 @@ const ITENS = [
     {
         to: '/equipe',
         rotulo: 'Equipe',
-        somenteAdmin: true, // só o admin da empresa gerencia a equipe
+        somenteAdmin: true,
         icone: (
             <>
                 <circle cx="9" cy="8" r="3.5" />
@@ -91,7 +91,6 @@ const ICONE_BOTAO = 'relative grid h-9 w-9 place-items-center rounded-md border 
 export function AppShell() {
     const { user } = useAuth();
     const navigate = useNavigate();
-    // Busca o usuário atualizado (quem entrou antes do cadastro por empresa tem o `isAdmin` vazio no navegador).
     const { data: me } = useQuery({ queryKey: ['me'], queryFn: api.getMe, initialData: user ?? undefined });
     const itens = ITENS.filter((i) => !i.somenteAdmin || me?.isAdmin);
     const { data: usina } = useQuery({ queryKey: ['plant'], queryFn: api.getPlant });

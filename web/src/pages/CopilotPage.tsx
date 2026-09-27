@@ -31,13 +31,12 @@ export function CopilotPage() {
   const qc = useQueryClient();
 
   const [sessaoId, setSessaoId] = useState<string | null>(null);
-  // A norma de onde o usuário veio (botão dos Resumos/Painel): vai junto em toda pergunta desta conversa.
   const [normaFoco, setNormaFoco] = useState<string | null>(null);
   const [pendente, setPendente] = useState<Mensagem[]>([]);
   const [texto, setTexto] = useState('');
   const [abertas, setAbertas] = useState<Record<string, boolean>>({});
   const logRef = useRef<HTMLDivElement>(null);
-  // O StrictMode (dev) roda o efeito da pergunta inicial duas vezes: sem isso, ela ia duas vezes ao copiloto.
+  // O StrictMode roda o efeito duas vezes em dev.
   const perguntaInicialFeita = useRef<string | null>(null);
   const perguntaInicial = params.get('q');
   const normaInicial = params.get('norma');

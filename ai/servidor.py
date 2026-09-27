@@ -1,14 +1,6 @@
-"""
-Energy Start — Serviço do copiloto (chamado pela API, nunca pelo navegador)
+"""Serviço do copiloto, chamado pela API com o header x-internal-key.
 
     uvicorn servidor:app --host 0.0.0.0 --port 8000
-
-Contrato (o mesmo que a API espera em AI_SERVICE_URL):
-    POST /ask  {"question": "...", "perfil": {...perfil da usina...}, "historico": [{"role", "content"}],
-                "normaId": "uuid da norma em foco, ou null", "novidades": [...catálogo do feed da empresa...],
-                "canonicas": [{"code", "title", "url"}]}
-       ->      {"answer": "texto com [n]", "citations": [{"label", "excerpt", "normId", "url"}]}
-Exige o header x-internal-key (INTERNAL_API_KEY): cada pergunta gasta chamadas de modelo (Bedrock ou NVIDIA).
 """
 
 import hmac
@@ -32,9 +24,9 @@ class Pergunta(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     perfil: dict | None = None
     historico: list[dict] = Field(default_factory=list)  # [{"role": "user"|"assistant", "content": "..."}]
-    normaId: str | None = None  # a norma de que o usuário está falando (botão dos Resumos/Painel)
-    novidades: list[dict] = Field(default_factory=list)  # catalogoParaOCopiloto da API: resumo, prazo, o que fazer
-    canonicas: list[dict] = Field(default_factory=list)  # normas-base da base: [{"code", "title", "url"}]
+    normaId: str | None = None
+    novidades: list[dict] = Field(default_factory=list)
+    canonicas: list[dict] = Field(default_factory=list)
 
 
 @app.get("/health")
@@ -57,5 +49,4 @@ def ask(pergunta: Pergunta, x_internal_key: str = Header(default="")):
         )
     except Exception:
         logging.exception("Falha ao responder a pergunta")
-        # a API trata o erro e cai na busca por palavra-chave
         raise HTTPException(status_code=502, detail="O copiloto não conseguiu gerar a resposta.")

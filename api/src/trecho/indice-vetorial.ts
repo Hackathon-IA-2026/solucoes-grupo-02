@@ -1,6 +1,4 @@
-// Índice dos vetores dos trechos em memória: sem a extensão pgvector não há busca
-// vetorial no banco. É carregado na primeira busca e descartado a cada ingestão (a
-// próxima busca recarrega), em vez de ler milhares de vetores do banco a cada pergunta.
+// Índice em memória (sem pgvector não há busca vetorial no banco), recarregado após cada ingestão.
 
 export interface TrechoComVetor {
     id: string;
@@ -20,12 +18,10 @@ export interface TrechoSemelhante {
     similaridade: number;
 }
 
-// Normas e artigos citados na pergunta ("art. 26 da Lei 14.300"): embedding é ruim com
-// número exato, então os trechos dessas normas entram mesmo fora dos mais parecidos.
 export interface Referencias {
     normaIds?: string[];
     artigos?: string[]; // só o número: "26"
-    somenteReferencias?: boolean; // devolve só os trechos das normas citadas
+    somenteReferencias?: boolean;
 }
 
 const TRECHOS_POR_NORMA_CITADA = 3;
@@ -67,9 +63,6 @@ export class IndiceVetorial {
         return this.indice;
     }
 
-    // Os `limite` trechos mais parecidos com o vetor (similaridade de cosseno) e, se a
-    // pergunta citou normas, os mais parecidos de cada uma e os dos artigos citados.
-    // Trechos com vetor de outro tamanho (outro modelo de embedding) ficam de fora.
     async buscar(vetor: number[], limite = 10, referencias: Referencias = {}): Promise<TrechoSemelhante[]> {
         const consulta = normalizarVetor(vetor);
         const todos: TrechoSemelhante[] = [];

@@ -14,8 +14,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         });
     }
 
-    // Relê o usuário a cada requisição: quem foi removido da empresa perde o acesso
-    // na hora, e virar (ou deixar de ser) admin vale sem precisar logar de novo.
+    // Relê o usuário a cada requisição para que remoção e troca de permissão valham na hora.
     async validate(payload: { id: string }): Promise<UserPayload> {
         const user = await this.userService.findForAuth(payload.id);
         if (!user?.companyId) throw new UnauthorizedException('Sessão inválida. Entre novamente.');

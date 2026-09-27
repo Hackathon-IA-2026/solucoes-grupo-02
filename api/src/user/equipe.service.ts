@@ -18,9 +18,6 @@ export function toMemberResponse(user: UserEntity) {
     };
 }
 
-// Gestão da equipe de uma empresa pelos admins: convite por e-mail (com o link
-// também devolvido na resposta, pra ser copiado quando não há SMTP), remoção e
-// troca de permissão. Tudo sempre dentro da empresa de quem pede.
 @Injectable()
 export class EquipeService {
     constructor(
@@ -69,7 +66,6 @@ export class EquipeService {
             to: convidado.email,
             subject: assunto,
             html: htmlCorpo,
-            // Texto alternativo limpo para melhorar a entregabilidade em servidores corporativos
             text:
                 `${quemConvida.name} convidou você para acessar a conta da ${empresa} no Energy Start.\n\n` +
                 `Acesse o link a seguir para criar sua senha (válido por 7 dias):\n${link}`,

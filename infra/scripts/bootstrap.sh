@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
-# Sexta, passo 2b: prepara a conta para a CDK (bootstrap), uma vez só.
-# O `cdk bootstrap` padrão falha nesta conta: ele configura no repositório ECR uma regra de limpeza
-# e uma política de acesso que a conta bloqueia e, ao reverter, não consegue apagar o repositório
-# (a pilha CDKToolkit fica em ROLLBACK_FAILED/DELETE_FAILED). Este script:
-#   1. tira do caminho uma tentativa anterior que falhou, mantendo o repositório (não pode ser apagado);
-#   2. cria o repositório das imagens se ele não existir, sem as configurações bloqueadas;
-#   3. roda o bootstrap com o modelo ajustado em infra/bootstrap/template.yaml.
+# Bootstrap da CDK (uma vez só). O padrão falha nesta conta por configurar no repositório ECR
+# ações bloqueadas; aqui o repositório é criado antes e o bootstrap usa infra/bootstrap/template.yaml.
 source "$(dirname "$0")/_common.sh"
 cd "$(dirname "$0")/.."
 

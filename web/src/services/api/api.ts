@@ -16,23 +16,9 @@ api.interceptors.request.use(
         return config;
     },
     function (error) {
-        // Do something with request error
         return Promise.reject(error);
     },
 );
-
-// api.interceptors.request.use((config) => {
-//     try {
-//         const token = localStorage.getItem(TOKEN_KEY);
-//         if (token && !config.headers.Authorization) {
-//             config.headers.Authorization = `Bearer ${token}`;
-//         }
-//     } catch {
-//         //
-//     }
-
-//     return config;
-// });
 
 api.interceptors.response.use(
     (response) => response,

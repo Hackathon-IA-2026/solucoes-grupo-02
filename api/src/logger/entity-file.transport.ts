@@ -1,4 +1,3 @@
-// src/logger/entity-file.transport.ts
 import { appendFile, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import * as TransportStream from 'winston-transport';
@@ -24,7 +23,6 @@ export class EntityFileTransport extends (Transport as new (opts?: TransportStre
 
         const context = info.context || 'System';
 
-        // Extrai o prefixo da classe
         const match = context.match(/^(.+?)(Controller|Service|Repository|Module|Resolver|Gateway)$/);
         const entityName = match ? match[1].toLowerCase() : 'system';
 

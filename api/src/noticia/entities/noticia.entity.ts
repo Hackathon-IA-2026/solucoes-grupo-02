@@ -18,13 +18,9 @@ export class NoticiaEntity extends BaseEntity {
     @Column({ name: 'image_url', nullable: true })
     imageUrl?: string;
 
-    // Setor/área a que a notícia se refere (ex: "Eólica", "Solar") — cruza com
-    // `Plant.kind`/`areas` pra decidir o que é relevante pra essa empresa.
     @Column({ nullable: true })
     setor?: string;
 
-    // Áreas da taxonomia (Solar, Eólica, Armazenamento) de que a notícia trata — a coleta
-    // automática (coletor.service.ts) marca todas; `setor` fica com a primeira.
     @Column({ type: 'text', array: true, default: '{}' })
     setores!: string[];
 

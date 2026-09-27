@@ -1,14 +1,4 @@
-"""
-Energy Start — Divisão das normas em trechos
-
-O trecho é a unidade que o copiloto recupera e cita. Mesma regra da API
-(api/src/ingestao/ingestao.mapper.ts, usada quando o Python não manda trechos):
-  - cada artigo vira um trecho; o que vem antes do Art. 1º vira um trecho sem artigo;
-  - artigo longo é quebrado em pedaços de até `max_chars`, sem cortar parágrafo;
-  - parágrafo maior que `max_chars` (comum em PDF) é quebrado entre palavras;
-  - artigos curtos seguidos ("Art. 30. Esta Lei entra em vigor...") são juntados até
-    `min_chars`, com o rótulo do intervalo ("Art. 29 a 31") para a citação continuar certa.
-"""
+"""Divisão das normas em trechos por artigo (mesma regra de api/src/ingestao/ingestao.mapper.ts)."""
 
 import re
 

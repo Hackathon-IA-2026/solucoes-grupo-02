@@ -31,8 +31,7 @@ services:
             db:
                 condition: service_healthy
 
-    # Pipeline: coleta o DOU, classifica, resume e grava na API (roda e termina).
-    # Coletar um dia específico: docker compose run --rm ai python main.py 25-09-2026
+    # Pipeline de um dia: docker compose run --rm ai python main.py 25-09-2026
     ai:
         build: ./ai
         env_file: ./.env
@@ -43,8 +42,7 @@ services:
         depends_on:
             - api
 
-    # Copiloto (3º LLM): a API chama POST /ask; ele busca os trechos na API e responde.
-    # Carga das normas canônicas (uma vez): docker compose run --rm ai python carregar_canonicas.py
+    # Carga das canônicas: docker compose run --rm ai python carregar_canonicas.py
     copiloto:
         build: ./ai
         command: ["uvicorn", "servidor:app", "--host", "0.0.0.0", "--port", "8000"]

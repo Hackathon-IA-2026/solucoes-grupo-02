@@ -3,8 +3,6 @@ import { Cron } from '@nestjs/schedule';
 import { NoticiaService } from './noticia.service';
 import { FONTES, FonteDeNoticias, lerGovBr, lerRss, setoresDaNoticia } from './coleta';
 
-// Notícia mais velha que isso não entra (as associações publicam pouco: o feed da ABEEólica
-// chega a ter itens de meses atrás).
 const DIAS_MAXIMOS = 90;
 
 export interface ResultadoColeta {
@@ -12,8 +10,6 @@ export interface ResultadoColeta {
     porFonte: Record<string, { lidas: number; daTaxonomia: number; novas: number; erro?: string }>;
 }
 
-// Coleta as notícias das FONTES (coleta.ts) a cada 3 horas e quando a API sobe, e guarda as
-// que tratam de uma área da taxonomia. Uma fonte fora do ar não atrapalha as outras.
 @Injectable()
 export class NoticiaColetorService implements OnApplicationBootstrap {
     private readonly logger = new Logger(NoticiaColetorService.name);
@@ -22,7 +18,6 @@ export class NoticiaColetorService implements OnApplicationBootstrap {
     constructor(private readonly noticiaService: NoticiaService) {}
 
     onApplicationBootstrap() {
-        // sem esperar: a API sobe na hora e as notícias chegam em alguns segundos
         void this.coletar();
     }
 

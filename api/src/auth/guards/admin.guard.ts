@@ -1,7 +1,6 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { UserPayload } from '../types/user.payload.type';
 
-// Libera só administradores da empresa. Roda depois do JwtAuthGuard global, que preenche `req.user`.
 @Injectable()
 export class AdminGuard implements CanActivate {
     canActivate(context: ExecutionContext): boolean {

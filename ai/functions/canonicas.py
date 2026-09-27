@@ -1,17 +1,5 @@
-"""
-Energy Start — Normas canônicas (o "estoque" do copiloto)
-
-Normas-base, em vigor, que o copiloto consulta junto com as novidades do DOU:
-a Lei 14.300 (geração distribuída), a REN 1.000 (conexão), o PRODIST... Elas
-entram na API marcadas como canônicas: não aparecem no radar de novidades e
-não geram alerta de "norma nova"; servem de base para as respostas.
-
-Duas fontes:
-  1. Leis e decretos do Planalto, baixados automaticamente (NORMAS_PLANALTO).
-  2. PDFs das resoluções da ANEEL (os do Leis.org usados no notebook), colocados
-     em ai/data/canonicas/ — o site da ANEEL e o Leis.org bloqueiam download
-     automático. A limpeza é a mesma do pré-processamento do notebook.
-"""
+"""Normas canônicas (base do copiloto): leis do Planalto, baixadas automaticamente, e PDFs da ANEEL
+colocados em ai/data/canonicas/ (os sites bloqueiam download automático)."""
 
 import html
 import re
@@ -23,7 +11,6 @@ import requests
 CABECALHO = {"User-Agent": "Mozilla/5.0 (EnergyStart - hackathon COPPE)"}
 PASTA_PDFS = Path(__file__).resolve().parent.parent / "data" / "canonicas"
 
-# Área/subárea no mesmo formato do classificador (só para referência: canônicas não geram alerta).
 NORMAS_PLANALTO = [
     {
         "link": "https://www.planalto.gov.br/ccivil_03/_ato2019-2022/2022/lei/l14300.htm",
@@ -55,17 +42,11 @@ def _data_do_titulo(titulo: str) -> str | None:
     return f"{int(m.group(1)):02d}/{MESES.index(m.group(2).lower()) + 1:02d}/{m.group(3)}"
 
 
-# ---------------------------------------------------------------------------
-# Planalto (HTML)
-# ---------------------------------------------------------------------------
-
-
 def _html_para_texto(pagina: str) -> str:
-    # texto riscado no Planalto é redação revogada/alterada: sai antes de tirar as tags
+    # texto riscado é redação revogada
     pagina = re.sub(r"<(strike|s|del)\b[^>]*>.*?</\1>", " ", pagina, flags=re.S | re.I)
     pagina = re.sub(r"<(script|style|head)[^>]*>.*?</\1>", " ", pagina, flags=re.S | re.I)
-    # o HTML do Planalto quebra linha no meio do parágrafo ("Art." numa linha, "2º" na
-    # outra): junta tudo primeiro e só quebra onde o parágrafo acaba de verdade
+    # o Planalto quebra linha no meio do parágrafo
     pagina = re.sub(r"\s+", " ", pagina)
     pagina = re.sub(r"</p>|<br\s*/?>|</h\d>|</div>|</tr>", "\n", pagina, flags=re.I)
     pagina = re.sub(r"<[^>]+>", " ", pagina)
@@ -82,7 +63,6 @@ def baixar_planalto(norma: dict) -> dict | None:
     if not titulo:
         print(f"[ignorado] {norma['link']} — não achei o título da norma")
         return None
-    # o que vem antes do título é o cabeçalho do site (brasão, "Presidência da República"...)
     texto = texto[titulo.start() :]
     titulo_limpo = re.sub(r"\s+", " ", titulo.group(0)).strip().upper()
     return {
@@ -98,10 +78,6 @@ def baixar_planalto(norma: dict) -> dict | None:
         "canonica": True,
     }
 
-
-# ---------------------------------------------------------------------------
-# PDFs da ANEEL (Leis.org) — limpeza igual à do notebook (célula "Pré-processamento dos PDFs")
-# ---------------------------------------------------------------------------
 
 # Início de um dispositivo: "Art. 12.", "Art. 655-A", "§ 2º", "Parágrafo único", "XXIX-A -", "IV -", "a)"
 ROTULO = re.compile(r"^\s*(Art\.\s*\d+[º°]?(?:-[A-Z]+)?|§\s*\d+[º°]?|Parágrafo único|[IVXLC]+(?:-[A-Z]+)?\s+-|[a-z]\))")
@@ -150,7 +126,7 @@ def _remover_redacoes_antigas(texto: str) -> str:
         if not m:
             continue
         chave = _chave_rotulo(m.group(1))
-        for j in range(i - 1, max(i - 15, -1), -1):  # procura a versão antiga logo antes
+        for j in range(i - 1, max(i - 15, -1), -1):
             mj = ROTULO.match(blocos[j])
             if mj and _chave_rotulo(mj.group(1)) == chave and manter[j]:
                 manter[j] = False

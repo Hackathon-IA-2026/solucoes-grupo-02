@@ -1,17 +1,4 @@
-"""
-Energy Start — Quem um ato cita: CNPJs e CEGs no texto
-
-A maior parte do que a ANEEL e o MME publicam no DOU é ato individual: um despacho que
-libera as unidades geradoras de uma usina, uma multa, um enquadramento no REIDI... Esses
-atos só interessam à empresa citada, que aparece pelo CNPJ ou pelo CEG (Código Único de
-Empreendimentos de Geração) da usina. Aqui eles são extraídos do texto por regex (não
-precisa de LLM: o número está escrito) e comparados com os clientes cadastrados na API.
-
-O mesmo formato é usado na API (api/src/utils/ceg.ts e ingestao.mapper.ts):
-    CNPJ -> só dígitos, "18565382000166" (compara pela raiz, os 8 primeiros: matriz e filiais)
-    CEG  -> tipo.fonte.UF.núcleo, "UFV.RS.PE.075566" (sem dígito e versão, que o DOU escreve
-            de vários jeitos: "-4.01", "-4.1", cortado na tabela...)
-"""
+"""CNPJs e CEGs citados nos atos, extraídos por regex no mesmo formato da API (api/src/utils/ceg.ts)."""
 
 import re
 

@@ -1,6 +1,5 @@
 export type Source = 'aneel' | 'ccee' | 'dou';
 export type Impact = 'alto' | 'medio' | 'baixo';
-// 'minhas' = só as normas das áreas/subáreas que a empresa monitora na Central de Alertas.
 export type Escopo = 'minhas' | 'todas';
 
 export interface Norm {
@@ -14,10 +13,10 @@ export interface Norm {
     title: string;
     lead: string;
     deadline: string;
-    deadlineAt?: string; // AAAA-MM-DD do próximo prazo
+    deadlineAt?: string; // AAAA-MM-DD
     changes: string[];
-    changeSources?: string[]; // trecho literal da norma que comprova cada mudança (mesma posição)
-    subareas?: string[]; // ex.: "Solar > Geração distribuída"
+    changeSources?: string[];
+    subareas?: string[];
     why: string;
     url?: string;
 }
@@ -36,20 +35,16 @@ export interface Plant {
     availabilityMin: number;
     areas: string[];
     subareas: string[];
-    // Como a empresa aparece nos atos individuais (despacho sobre uma usina, multa...): CEGs das
-    // usinas e CNPJs (só dígitos) das SPEs. O CNPJ da empresa já conta.
     cegs: string[];
     cnpjs: string[];
     channels: { email: boolean; push: boolean; pdf: boolean };
     frequency: string;
 }
 
-// Área -> subáreas que o classificador conhece (GET /plants/taxonomia).
 export type Taxonomia = Record<string, string[]>;
 
-// Usina do cadastro de agentes de geração da ANEEL (GET /plants/me/usinas-aneel).
 export interface UsinaAneel {
-    ceg: string; // normalizado, como vai em Plant.cegs
+    ceg: string;
     codigoCeg: string;
     nome: string;
     tipo: string;
@@ -67,7 +62,7 @@ export interface Noticia {
     url?: string;
     imageUrl?: string;
     setor?: string;
-    setores?: string[]; // áreas da taxonomia de que a notícia trata (Solar, Eólica, Armazenamento)
+    setores?: string[];
     date: string;
 }
 
@@ -78,7 +73,7 @@ export interface Alert {
     message: string;
     at: string;
     lido?: boolean;
-    tipo?: string; // 'norma_nova' | 'ato_da_empresa' | 'limite_excedido'
+    tipo?: string;
     normId?: string;
 }
 
@@ -86,7 +81,7 @@ export interface Citation {
     label: string;
     excerpt: string;
     normId?: string;
-    url?: string; // documento oficial (DOU, ANEEL, Planalto)
+    url?: string;
 }
 
 export interface CopilotAnswer {
@@ -118,7 +113,7 @@ export interface User {
     phone: string;
     monthlyReportEnabled: boolean;
     initials: string;
-    isAdmin: boolean; // admin da empresa: convida e remove usuários
+    isAdmin: boolean;
 }
 
 export interface TeamMember {
@@ -140,7 +135,7 @@ export interface InviteInput {
 
 export interface InviteResult {
     membro: TeamMember;
-    linkConvite: string; // também vai por e-mail; a tela mostra pra copiar
+    linkConvite: string;
 }
 
 export interface Session {
@@ -160,16 +155,15 @@ export interface Api {
     getPlant(): Promise<Plant>;
     getTaxonomia(): Promise<Taxonomia>;
     updatePlant(patch: Partial<Plant>): Promise<Plant>;
-    listUsinasAneel(cnpjs: string[]): Promise<UsinaAneel[]>; // cnpjs: SPEs ainda não salvas
+    listUsinasAneel(cnpjs: string[]): Promise<UsinaAneel[]>;
     listAlerts(): Promise<Alert[]>;
     checkAlerts(): Promise<Alert[]>;
     markAlertRead(id: string): Promise<Alert>;
-    listNoticias(setor?: string, escopo?: Escopo): Promise<Noticia[]>; // 'minhas' = áreas monitoradas pela empresa
+    listNoticias(setor?: string, escopo?: Escopo): Promise<Noticia[]>;
     getNormPdf(id: string): Promise<Blob>;
     listChatSessions(): Promise<ChatSession[]>;
     createChatSession(): Promise<ChatSession>;
     listChatMessages(sessionId: string): Promise<ChatMessage[]>;
-    // normaId: a norma de que o usuário está falando (veio do botão dos Resumos/Painel)
     sendChatMessage(sessionId: string, question: string, normaId?: string): Promise<CopilotAnswer>;
     listTeam(): Promise<TeamMember[]>;
     inviteMember(input: InviteInput): Promise<InviteResult>;

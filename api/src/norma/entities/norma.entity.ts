@@ -7,7 +7,6 @@ export type NormaAbrangencia = 'geral' | 'individual';
 
 @Entity({ name: 'normas' })
 export class NormaEntity extends BaseEntity {
-    // Campos "de vitrine", prontos pro formato que o front (Dashboard/Resumos) consome.
     @Column({ type: 'enum', enum: ['aneel', 'ccee', 'dou'] })
     source!: NormaSource;
 
@@ -23,22 +22,15 @@ export class NormaEntity extends BaseEntity {
     @Column({ nullable: true })
     deadline?: string;
 
-    // Data do próximo prazo (o `deadline` acima é o texto pra exibir) — o painel usa
-    // pra contar "prazos que vencem esta semana".
     @Column({ name: 'deadline_at', type: 'date', nullable: true })
     deadlineAt?: string;
 
     @Column({ type: 'text', array: true, default: '{}' })
     changes!: string[];
 
-    // Trecho literal da norma que comprova cada mudança (mesma posição de `changes`;
-    // '' quando não houver) — a rastreabilidade que a tela de Resumos mostra.
     @Column({ name: 'change_sources', type: 'text', array: true, default: '{}' })
     changeSources!: string[];
 
-    // "Por que importa pra você": hoje é global por norma (simplificação de MVP).
-    // O correto a médio prazo é isso vir personalizado por empresa, cruzando com
-    // `limites`/`configuracoes` em vez de morar fixo aqui.
     @Column({ type: 'text', nullable: true })
     why?: string;
 
@@ -51,10 +43,6 @@ export class NormaEntity extends BaseEntity {
     @Column({ nullable: true })
     url?: string;
 
-    // Campos "de ingestão", como documentado em ENDPOINTS.md — preenchidos pelo
-    // pipeline de coleta/extração quando ele existir.
-    // Norma-base em vigor (Lei 14.300, REN 1.000...) carregada para o copiloto consultar:
-    // não aparece no radar de novidades e não gera alerta de "norma nova".
     @Column({ default: false })
     canonica!: boolean;
 
@@ -73,13 +61,9 @@ export class NormaEntity extends BaseEntity {
     @Column({ nullable: true })
     subarea?: string;
 
-    // "geral" vale para o setor (resolução normativa, consulta pública...) e casa pelas áreas
-    // monitoradas. "individual" é dirigida a uma empresa ou usina (despacho que libera uma
-    // usina, multa, REIDI...): só aparece e só gera alerta para a empresa citada em `cnpjs`/`cegs`.
     @Column({ type: 'varchar', length: 10, default: 'geral' })
     abrangencia!: NormaAbrangencia;
 
-    // CNPJs (só dígitos) e CEGs (normalizados, ver utils/ceg.ts) citados no texto.
     @Column({ type: 'text', array: true, default: '{}' })
     cnpjs!: string[];
 

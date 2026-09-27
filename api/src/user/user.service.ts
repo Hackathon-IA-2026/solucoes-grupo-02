@@ -26,7 +26,6 @@ export class UserService extends BaseService<UserEntity> {
         super(userRepository);
     }
 
-    // Só o necessário pra montar `req.user` (chamado a cada requisição autenticada).
     async findForAuth(id: string): Promise<Pick<UserEntity, 'id' | 'companyId' | 'isAdmin'> | null> {
         return await this.repository.findOne({ where: { id }, select: { id: true, companyId: true, isAdmin: true } });
     }
@@ -41,7 +40,6 @@ export class UserService extends BaseService<UserEntity> {
         return await this.findAllInstances({ where: { companyId }, order: { createdAt: 'ASC' } });
     }
 
-    // Quem recebe e-mail de alerta: membros da empresa que já criaram a senha.
     async listActiveByCompany(companyId: string): Promise<UserEntity[]> {
         return await this.findAllInstances({ where: { companyId, invitePending: false } });
     }
@@ -50,8 +48,6 @@ export class UserService extends BaseService<UserEntity> {
         return await this.repository.existsBy({ email });
     }
 
-    // Cria o usuário convidado com uma senha aleatória (inutilizável) e um token de
-    // convite: é pelo link com esse token que a pessoa define a própria senha.
     async invite(companyId: string, input: ConviteInput): Promise<{ user: UserEntity; token: string }> {
         if (await this.emailExists(input.email)) throw new ConflictException('Já existe uma conta com esse e-mail.');
 
@@ -70,7 +66,6 @@ export class UserService extends BaseService<UserEntity> {
         return { user, token };
     }
 
-    // Gera um link novo pra quem ainda não aceitou o convite (o anterior deixa de valer).
     async renewInvite(companyId: string, id: string): Promise<{ user: UserEntity; token: string }> {
         const user = await this.findInCompanyOrFail(companyId, id);
         if (!user.invitePending) throw new BadRequestException('Esse usuário já criou a senha.');
@@ -125,7 +120,6 @@ export class UserService extends BaseService<UserEntity> {
         return user;
     }
 
-    // Busca sempre dentro da empresa de quem pede: id de outra empresa responde 404.
     private async findInCompanyOrFail(companyId: string, id: string): Promise<UserEntity> {
         const user = await this.repository.findOneBy({ id, companyId });
         if (!user) throw new NotFoundException('Usuário não encontrado nesta empresa.');
@@ -136,8 +130,7 @@ export class UserService extends BaseService<UserEntity> {
         return await this.repository.countBy({ companyId, isAdmin: true });
     }
 
-    // Não lança se o e-mail não existir — quem chama isso não deve vazar pro
-    // cliente se um e-mail está cadastrado ou não.
+    // Não lança se o e-mail não existir, para não revelar quais estão cadastrados.
     async requestPasswordReset(email: string): Promise<{ user: UserEntity; token: string } | null> {
         const user = await this.findByEmail(email);
         if (!user) return null;
@@ -148,7 +141,6 @@ export class UserService extends BaseService<UserEntity> {
         return { user, token };
     }
 
-    // Serve tanto pro "esqueci a senha" quanto pro link de convite.
     async resetPasswordWithToken(token: string, newPassword: string): Promise<boolean> {
         const user = await this.repository.findOneBy({ resetPasswordToken: token });
         if (!user || !user.resetPasswordExpiresAt || user.resetPasswordExpiresAt.getTime() < Date.now()) {

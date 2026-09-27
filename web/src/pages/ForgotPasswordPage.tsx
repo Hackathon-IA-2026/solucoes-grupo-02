@@ -6,7 +6,6 @@ import { BackButton, Button, Field, cx } from '../components/ui';
 import { AuthLayout } from './AuthLayout';
 
 export function ForgotPasswordPage() {
-    // O link do e-mail ("esqueci a senha" ou convite de um admin) traz o token na URL e abre direto na etapa da senha.
     const [params] = useSearchParams();
     const token = params.get('token');
     const convite = params.get('convite') === '1';

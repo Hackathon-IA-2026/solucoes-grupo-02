@@ -12,7 +12,6 @@ function formatDate(value?: string): string {
     return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-// Molda a entidade pro formato de card que o front (tela de Notícias) consome.
 export function toNoticiaResponse(noticia: NoticiaEntity) {
     return {
         id: noticia.id,
@@ -40,14 +39,12 @@ export class NoticiaService extends BaseService<NoticiaEntity> {
         return await this.persist(dto);
     }
 
-    // As mais recentes; com `areas` (as monitoradas pela empresa), só as que tratam de alguma delas.
     async list(setor?: string, areas?: string[]): Promise<NoticiaEntity[]> {
         const noticias = await this.findAllInstances({ order: { publicadoEm: 'DESC', createdAt: 'DESC' }, take: 300 });
         const deAlguma = (n: NoticiaEntity, lista: string[]) => (n.setores?.length ? n.setores : [n.setor]).some((s) => s && lista.includes(s));
         return noticias.filter((n) => (!setor || deAlguma(n, [setor])) && (!areas?.length || deAlguma(n, areas))).slice(0, 60);
     }
 
-    // Quais destes links já estão gravados (a coleta não duplica notícia).
     async urlsExistentes(urls: string[]): Promise<Set<string>> {
         if (urls.length === 0) return new Set();
         const achadas = await this.findAllInstances({ where: { url: In(urls) }, select: { id: true, url: true } });

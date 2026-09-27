@@ -1,7 +1,5 @@
 import { UserEntity } from '../entities/user.entity';
 
-// Resposta pública do usuário: a entity nunca sai direto pela API
-// (quando entrar senha/token_reset_password, eles ficam de fora daqui).
 export class GetUserDto {
     id!: string;
     name!: string;

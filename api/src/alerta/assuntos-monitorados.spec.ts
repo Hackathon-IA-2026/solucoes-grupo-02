@@ -42,7 +42,6 @@ describe('assuntosMonitorados', () => {
 });
 
 describe('citaAEmpresa / normaInteressa', () => {
-    // Despacho que libera as unidades geradoras de uma usina solar de outra empresa
     const despacho = {
         area: 'Solar',
         subarea: 'Solar > Geração distribuída',

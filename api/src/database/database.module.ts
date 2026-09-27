@@ -15,7 +15,6 @@ import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
                 password: config.get<string>('DB_PASSWORD'),
                 database: config.get<string>('DB_NAME'),
                 autoLoadEntities: true,
-                // Sem migrations no repo: o deploy liga DB_SYNCHRONIZE=true para criar as tabelas.
                 synchronize:
                     config.get<string>('DB_SYNCHRONIZE') !== undefined
                         ? config.get<string>('DB_SYNCHRONIZE') === 'true'

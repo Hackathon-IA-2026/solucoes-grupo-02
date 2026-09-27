@@ -1,10 +1,6 @@
-"""
-Carrega as normas canônicas na base do copiloto (rodar uma vez, e de novo quando
-entrar uma norma-base nova ou um PDF novo em ai/data/canonicas/).
+"""Carrega as normas canônicas na base do copiloto. Normas já carregadas são ignoradas pela API.
 
     python carregar_canonicas.py
-
-Normas já carregadas (mesmo texto) são ignoradas pela API.
 """
 
 import pandas as pd

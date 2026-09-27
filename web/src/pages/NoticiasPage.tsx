@@ -5,8 +5,6 @@ import { TELA } from '../components/AppShell';
 import { Chip, PageHead, Panel } from '../components/ui';
 import type { Escopo } from '../types';
 
-// As notícias vêm de fontes especializadas (ABSOLAR, ABEEólica, PV Magazine Brasil, MegaWhat,
-// ANEEL e MME), coletadas pela API a cada 3 horas — só as que tratam de solar, eólica ou armazenamento.
 export function NoticiasPage() {
   const [escopo, setEscopo] = useState<Escopo>('minhas');
   const { data: noticias = [], isLoading } = useQuery({ queryKey: ['noticias', escopo], queryFn: () => api.listNoticias(undefined, escopo) });
@@ -38,7 +36,6 @@ export function NoticiasPage() {
         {noticias.map((n) => (
           <Panel key={n.id} className="flex flex-col">
             {n.imageUrl && (
-              // Alguns sites não deixam a imagem ser exibida fora deles: se não carregar, o card fica sem imagem.
               <img
                 src={n.imageUrl}
                 alt=""

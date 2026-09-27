@@ -13,7 +13,6 @@ function formatDate(value?: string): string {
     return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-// Molda a entidade pro formato que o front (Dashboard/Resumos) já consome.
 export function toNormResponse(norma: NormaEntity) {
     return {
         id: norma.id,

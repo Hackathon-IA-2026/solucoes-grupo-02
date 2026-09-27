@@ -6,11 +6,6 @@ import type { CreateTrechoDto } from '../trecho/dto/create-trecho.dto';
 import { normalizarCeg } from '../utils/ceg';
 import { cnpjValido, somenteDigitos } from '../utils/cnpj';
 
-// Converte uma linha do DataFrame final do pipeline Python (saída do `coletar_df`
-// em ai/models/summarizer.py, enviada com `df.to_json(orient="records")`) nos
-// registros do banco: norma, extração, limites e trechos. As colunas vêm do pandas,
-// então tudo é lido de forma defensiva — campo ausente, `null` ou de tipo errado é ignorado.
-
 export type LimiteMapeado = Omit<CreateLimiteDto, 'normaId' | 'extracaoId'>;
 export type TrechoMapeado = Omit<CreateTrechoDto, 'normaId'>;
 
@@ -58,7 +53,7 @@ function comPonto(frase: string): string {
     return /[.!?…]$/.test(frase) ? frase : `${frase}.`;
 }
 
-// Aceita "23/09/2026" (formato do pubDate do DOU) e "2026-09-23..." (ISO). Devolve AAAA-MM-DD.
+// "23/09/2026" ou "2026-09-23..." -> "2026-09-23"
 export function paraDataIso(v: unknown): string | undefined {
     const t = str(v);
     if (!t) return undefined;
@@ -85,7 +80,6 @@ export function impactoDaRelevancia(relevancia?: number): NormaImpact {
     return 'baixo';
 }
 
-// Primeira frase do resumo vira a manchete do card, cortada num tamanho de título.
 function primeiraFrase(texto?: string): string | undefined {
     if (!texto) return undefined;
     const frase = texto.split(/(?<=[.!?])\s/)[0].trim();
@@ -105,8 +99,6 @@ function codigoDaNorma(titulo: string, tipo?: string, numero?: string, dataIso?:
 const CNPJ_NO_TEXTO = /\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b|CNPJ\D{0,15}(\d{14})\b/g;
 const CEG_NO_TEXTO = /\b[A-Z]{3}\s*\.\s*[A-Z]{2}\s*\.\s*[A-Z]{2}\s*\.\s*\d{4,6}/g;
 
-// Quem o ato cita: o pipeline manda as listas (`cnpjs`, `cegs`); sem elas, saem do texto.
-// Em qualquer caso ficam só CNPJs válidos (só dígitos) e CEGs normalizados, sem repetição.
 export function identificadoresCitados(linha: Record<string, unknown>, texto = ''): { cnpjs: string[]; cegs: string[] } {
     const cnpjs = Array.isArray(linha.cnpjs) ? listaDeTextos(linha.cnpjs) : [...texto.matchAll(CNPJ_NO_TEXTO)].map((m) => m[1] ?? m[0]);
     const cegs = Array.isArray(linha.cegs) ? listaDeTextos(linha.cegs) : (texto.match(CEG_NO_TEXTO) ?? []);
@@ -118,9 +110,6 @@ export function identificadoresCitados(linha: Record<string, unknown>, texto = '
 
 const INICIO_ARTIGO = /^Art\.?\s*\d+(?:\.\d+)*\s*[º°o]?(?:-[A-Z])?/i;
 
-// Quebra o texto da norma em trechos por artigo (o que o copiloto cita), e artigos
-// longos em pedaços de até `maxChars`, sem cortar no meio de um parágrafo.
-// O que vem antes do Art. 1º (preâmbulo, "resolve:") vira um trecho sem artigo.
 export function dividirEmTrechos(texto: string, maxChars = 1500): Array<{ artigo?: string; texto: string }> {
     const blocos: Array<{ artigo?: string; linhas: string[] }> = [];
     let atual: { artigo?: string; linhas: string[] } = { linhas: [] };
@@ -165,12 +154,9 @@ export function mapearNorma(linha: Linha, hoje = new Date()): NormaMapeada | { e
     const numero = str(linha.numero) ?? titulo.match(/N[º°o.]\s*([\d.\-/]+\d)/i)?.[1];
     const publishedAt = paraDataIso(linha.data);
 
-    // O resumidor devolve "ERRO: ..." quando o modelo falha — isso não vai pro card.
     const resumoBruto = str(linha.resumo);
     const resumo = resumoBruto && !resumoBruto.startsWith('ERRO') ? resumoBruto : undefined;
 
-    // Cada mudança vem com o trecho literal que o resumidor já conferiu contra o texto:
-    // ele vai junto (mesma posição) para a tela mostrar de onde saiu a afirmação.
     const mudancas = listaDeObjetos(linha.mudancas).flatMap((m) => {
         const oQue = str(m.o_que_mudou) ?? str(m.depois);
         if (!oQue) return [];
@@ -180,7 +166,6 @@ export function mapearNorma(linha: Linha, hoje = new Date()): NormaMapeada | { e
         return [{ texto, fonte: str(m.trecho) ?? '' }];
     });
 
-    // Próximo prazo ainda não vencido (vigência, contribuição de consulta pública, cumprimento...).
     const hojeIso = hoje.toISOString().slice(0, 10);
     const proximoPrazo = listaDeObjetos(linha.prazos)
         .flatMap((p) => {
@@ -193,7 +178,6 @@ export function mapearNorma(linha: Linha, hoje = new Date()): NormaMapeada | { e
         : undefined;
 
     const acao = str(linha.acao_necessaria);
-    // Despachos da ANEEL podem listar dezenas de empresas; o card mostra as primeiras.
     const afetados = listaDeTextos(linha.quem_e_afetado);
     const listaAfetados =
         afetados.length > MAX_AFETADOS
@@ -220,8 +204,6 @@ export function mapearNorma(linha: Linha, hoje = new Date()): NormaMapeada | { e
         ];
     });
 
-    // Se o Python já mandar os trechos (com embedding em `vetor`), usa esses; senão
-    // quebra o texto por artigo aqui, sem vetor — o copiloto busca por palavra-chave.
     const trechosEnviados: TrechoMapeado[] = listaDeObjetos(linha.trechos).flatMap((t, i) => {
         const textoTrecho = str(t.texto);
         if (!textoTrecho) return [];
@@ -252,11 +234,8 @@ export function mapearNorma(linha: Linha, hoje = new Date()): NormaMapeada | { e
             orgao: str(linha.orgao),
             tipo,
             numero,
-            // Áreas e pares "Área > Subárea" do classificador, guardados como texto
-            // (o motor de alertas separa de volta para cruzar com o perfil da usina).
             area: listaDeTextos(linha.area).join(', ') || undefined,
             subarea: listaDeTextos(linha.subarea).join('; ') || undefined,
-            // Do classificador: "individual" = ato dirigido a uma empresa/usina (só vai para quem ele cita).
             abrangencia: linha.abrangencia === 'individual' ? 'individual' : 'geral',
             cnpjs,
             cegs,

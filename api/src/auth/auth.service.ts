@@ -58,8 +58,6 @@ export class AuthService {
         return { token, user: await this.me(userId) };
     }
 
-    // Cadastro inicial: cria a empresa, a configuração da usina dela e o primeiro
-    // usuário (admin), tudo ou nada. Os próximos usuários entram por convite de um admin.
     async registrar(dto: RegisterDto) {
         const cnpj = somenteDigitos(dto.cnpj);
         const hashPassword = await bcrypt.hash(dto.password, 10);
@@ -91,7 +89,7 @@ export class AuthService {
 
     async forgotPassword(email: string): Promise<void> {
         const result = await this.usersService.requestPasswordReset(email);
-        // não revela se o e-mail existe: se não achou, só não manda nada.
+        // Não revela se o e-mail existe.
         if (!result) return;
 
         const webUrl = this.config.get<string>('WEB_URL', 'http://localhost:5173');
@@ -103,12 +101,10 @@ export class AuthService {
             `<p><a href="${escapeHtml(resetUrl)}">Clique aqui para criar uma senha nova</a>. O link vale por 1 hora.</p>` +
             `<p>Se você não pediu isso, pode ignorar este e-mail.</p>`;
 
-        // Consumindo a nova assinatura baseada em objeto (SendEmailOptions)
         await this.notificationService.sendEmail({
             to: result.user.email,
             subject: assunto,
             html: htmlCorpo,
-            // Fallback textual para evitar que filtros rígidos de spam barrem o link de recuperação
             text:
                 `Recebemos um pedido para redefinir a senha da sua conta no Energy Start.\n\n` +
                 `Acesse o link a seguir para criar uma senha nova (válido por 1 hora):\n${resetUrl}\n\n` +
